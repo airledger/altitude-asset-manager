@@ -1,0 +1,12 @@
+{
+  "appId": "uk.co.airledger.app",
+  "appName": "Air Ledger",
+  "webDir": "www",
+  "backgroundColor": "#0F2238",
+  "ios": { "contentInset": "never", "scheme": "Air Ledger" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0F2238", "showSpinner": false },
+    "LocalNotifications": { "iconColor": "#3FC1D9" }
+  }
+}

@@ -6,6 +6,9 @@ The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run
 - `index.html`: the app
 - `config.js`: your Supabase project URL and anon key
 - `supabase-setup.sql`: run once in Supabase to create the table, sync and photo bucket
+- `native.js`, `offline.js`: phone app features and offline support (see `mobile/README.md`)
+- `privacy.html`, `support.html`, `legal.css`: privacy policy and support pages (needed for the app stores)
+- `mobile/`: the iPhone and Android apps (Capacitor)
 - `manifest.json`, `icon-*.png`, `favicon-32.png`, `logo-reverse.svg`: Air Ledger branding and "Add to Home Screen" support
 
 ## Supabase setup (once)
