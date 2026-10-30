@@ -25,17 +25,20 @@ window.ServiceReport = (() => {
   function stable(v){return Array.isArray(v)?"["+v.map(stable).join(",")+"]":v&&typeof v==="object"?"{"+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+":"+stable(v[k])).join(",")+"}":JSON.stringify(v)}
   async function sha256(str){const h=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));return Array.from(new Uint8Array(h),b=>b.toString(16).padStart(2,"0")).join("")}
   // Everything the report states. If any of it changes after the report is issued, the job page says so.
-  function snapshot(j){
+  // Billing fields are left out, since invoicing a job doesn't change what was done. legacy = the record
+  // as reports issued before prices moved to the owner-only price list fingerprinted it.
+  function snapshot(j,legacy){
     const s=system(j.systemId)||{}, c=client(s.clientId)||{};
     const pick=(o,ks)=>Object.fromEntries(ks.map(k=>[k,o[k]??""]));
     const {serviceReports,invoiceId,...rec}=j;
+    if(!legacy){delete rec.toInvoice;delete rec.billing}
     return {job:rec,
       system:pick(s,["name","siteAddress","sitePostcode","refrigerant","factoryChargeKg","addedChargeKg"]),
       client:pick(c,["name","contactName","phone","email","billingAddress","postcode"]),
       units:unitsOf(s.id).map(u=>pick(u,["id","role","indoorType","manufacturer","model","serial","location"])),
       reports:jobReports(j.id).map(r=>pick(r,["kind","date","author","text","photos","unitId"]))};
   }
-  const fingerprint = j => sha256(stable(snapshot(j)));
+  const fingerprint = (j,legacy) => sha256(stable(snapshot(j,legacy)));
   const jobReports = id => S.reports.filter(r=>r.jobId===id).sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
   const latest = j => (j.serviceReports||[]).slice(-1)[0];
 
@@ -412,7 +415,7 @@ window.ServiceReport = (() => {
     if(!r) return `<div class="card" style="border-left:4px solid var(--accent)"><h2>Service report <span class="pill amber">Not sent yet</span></h2>
       <p class="note" style="margin-top:0">Get the engineer and customer to sign, then send the client and your office a branded PDF of exactly what was done.</p>
       <div class="row"><button class="btn pri" onclick="ServiceReport.signOff('${j.id}')">✍️ Sign off & send report</button></div></div>`;
-    fingerprint(j).then(h=>{const el=document.getElementById("srChk-"+j.id);if(el&&h!==r.hash)el.innerHTML='<span class="pill amber">Record edited since this report – re-issue it</span>'});
+    fingerprint(j).then(h=>{const el=document.getElementById("srChk-"+j.id);if(el&&h!==(r.hash2||r.hash))el.innerHTML='<span class="pill amber">Record edited since this report – re-issue it</span>'});
     const sent=(r.sent||[]).slice(-3).reverse();
     const so=j.signoff||{};
     return `<div class="card"><h2>Service report <span class="pill green">${esc(r.ref)}${r.rev>1?" rev "+r.rev:""}</span><span id="srChk-${esc(j.id)}"></span></h2>

@@ -12,6 +12,7 @@
 <script src="config.js"></script>
 <script src="business.js"></script>
 <script src="service-report.js"></script>
+<script src="billing.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -150,7 +151,7 @@ const SERVICE_TYPES = ["Annual service","Service + repair"];
 const JOB_TYPES = ["Annual service","Service + repair","Leak check","Repair / breakdown","Installation","Commissioning","Survey"];
 const INDOOR_TYPES = ["Wall mounted","Cassette","Ducted","Floor console","Ceiling suspended","Other"];
 const APPLIES = {visit:"Per visit",indoor:"Per indoor unit",outdoor:"Per outdoor unit",wall:"Per wall-mounted unit",cassette:"Per cassette",ducted:"Per ducted unit",console:"Per floor console",pump:"Per condensate pump",filter:"Per replaceable filter unit",remote:"Per wireless remote"};
-const WHEN = {service:"Services only",leak:"When leak check due",any:"Every job"};
+const WHEN = {service:"Services only",leak:"When leak check due",any:"Every job",pick:"Only when the engineer adds it"};
 const DEFAULTS = {
   businessName:"Altitude Climate", tradingAs:"Altitude Electrical", phone:"", email:"lewis@altitudeelectrical.co.uk", address:"",
   engineer:"Lewis", fgasCert:"", appUrl:"",
@@ -165,8 +166,9 @@ const DEFAULTS = {
 };
 
 /* ================= state ================= */
-const COLS = ["clients","systems","units","jobs","materials","invoices","reports"];
-const S = {clients:[],systems:[],units:[],jobs:[],materials:[],invoices:[],reports:[],settings:{}};
+// "pricing" and "invoices" are only readable by business owners (supabase-pricing.sql).
+const COLS = ["clients","systems","units","jobs","materials","invoices","reports","pricing"];
+const S = {clients:[],systems:[],units:[],jobs:[],materials:[],invoices:[],reports:[],pricing:[],settings:{}};
 const loaded = new Set();
 let db = null, downloads = null, assets = null, memoryMode = false;
 const photoCache = {};
@@ -293,9 +295,10 @@ function materialsFor(j){
     const w=m.when||"service";
     if(w==="service"&&!isService) continue;
     if(w==="leak"&&!leakDue) continue;
+    if(w==="pick") continue;
     const c=countFor(m.appliesTo||"visit",us); if(!c) continue;
     const raw=c*(Number(m.qtyPer)||1);
-    out.push({id:m.id,name:m.name,sku:m.sku||"",supplier:m.supplier||"Unassigned",raw,qty:Math.ceil(raw-1e-9),cost:Number(m.cost)||0,sell:Number(m.sell)||0,chargeable:!!m.chargeable});
+    out.push({id:m.id,name:m.name,sku:m.sku||"",supplier:m.supplier||"Unassigned",raw,qty:Math.ceil(raw-1e-9)});
   }
   return out;
 }
@@ -426,18 +429,20 @@ async function saveFile(filename,data){
 /* ================= rendering ================= */
 let rq=0;
 function schedule(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;render()})}
+const OWNER_TABS=["invoices","materials"];
 const TABS=[["dashboard","Dashboard"],["clients","Clients"],["assets","Assets"],["jobs","Jobs"],["orders","Orders"],["invoices","Invoices"],["materials","Materials"],["settings","Settings"]];
 function route(){const h=(location.hash||"").replace(/^#/,"");return h||"dashboard"}
 function render(){
   const r=route();
   const tabKey={c:"clients",s:"assets",u:"assets",j:"jobs",i:"invoices"}[r.split("-")[0]]||r;
-  $("#nav").innerHTML=TABS.map(([k,l])=>`<a href="#${k}" class="${k===tabKey?"on":""}">${l}</a>`).join("");
+  $("#nav").innerHTML=TABS.filter(([k])=>Biz.isOwner||!OWNER_TABS.includes(k)).map(([k,l])=>`<a href="#${k}" class="${k===tabKey?"on":""}">${l}</a>`).join("");
   if(loaded.size<COLS.length+1){$("#app").innerHTML='<div class="loading">Loading your assets…</div>';return}
   const ae=document.activeElement, aeId=ae&&ae.id, selS=ae&&ae.selectionStart;
   let html="";
   try{
     const [p,...rest]=r.split("-"); const id=rest.join("-");
-    if(p==="c"&&id) html=viewClient(id);
+    if(!Biz.isOwner&&(p==="i"||OWNER_TABS.includes(r))) html=Billing.ownerOnly();
+    else if(p==="c"&&id) html=viewClient(id);
     else if(p==="s"&&id) html=viewSystem(id);
     else if(p==="u"&&id) html=viewUnit(id.toUpperCase());
     else if(p==="j"&&id) html=viewJob(id);
@@ -446,9 +451,10 @@ function render(){
   }catch(e){console.error(e);html='<div class="card">Something went wrong showing this page: '+esc(e.message)+'</div>'}
   const banners=[];
   if(memoryMode) banners.push('<div class="banner"><b>Not connected:</b> add your Supabase details to config.js. Nothing is being saved.</div>');
-  else if(!appUrl()) banners.push('<div class="banner">Set the <b>App link</b> in <a href="#settings">Settings</a> so QR labels open assets directly.</div>');
+  else if(!appUrl()&&Biz.isOwner) banners.push('<div class="banner">Set the <b>App link</b> in <a href="#settings">Settings</a> so QR labels open assets directly.</div>');
   $("#app").innerHTML=banners.join("")+html;
   if(aeId){const el=document.getElementById(aeId);if(el){el.focus();try{el.setSelectionRange(selS,selS)}catch(e){}}}
+  Billing.tick();
 }
 window.addEventListener("hashchange",()=>{window.scrollTo(0,0);render()});
 
@@ -472,7 +478,7 @@ function viewDashboard(){
     <div class="kpi red" onclick="document.getElementById('due').scrollIntoView({behavior:'smooth'})"><b>${overdue}</b><span>Overdue services</span></div>
     <div class="kpi green" onclick="location.hash='jobs'"><b>${upcoming.length}</b><span>Jobs booked, next 14 days</span></div>
     <div class="kpi" onclick="location.hash='orders'"><b>${toOrder}</b><span>Jobs with parts to order</span></div>
-    <div class="kpi" onclick="location.hash='invoices'"><b>${drafts}</b><span>Invoices to send to ${acc()}</span></div>
+    ${Biz.isOwner?`<div class="kpi" onclick="location.hash='invoices'"><b>${drafts}</b><span>Invoices to send to ${acc()}</span></div>`:""}
   </div>
   <div class="row" style="margin-bottom:14px">
     <button class="btn pri" onclick="editClient()">+ New client</button>
@@ -512,7 +518,7 @@ function clientList(){
   const q=ui.clientQ.toLowerCase().trim();
   const list=S.clients.filter(c=>!q||[c.name,c.contactName,c.postcode,c.phone,c.email,c.billingAddress].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   if(!list.length) return '<div class="empty">'+(S.clients.length?"No matches.":"No clients yet – add your first one.")+'</div>';
-  return list.map(c=>{const ss=systemsOf(c.id);const nu=ss.reduce((n,s)=>n+unitsOf(s.id).length,0);return `<div class="item click" onclick="location.hash='c-${c.id}'"><div class="main"><div class="t">${esc(c.name)}</div><div class="m">${esc(c.contactName||"")}${c.postcode?" · "+esc(c.postcode):""} · ${ss.length} system${ss.length===1?"":"s"}, ${nu} unit${nu===1?"":"s"}</div></div>${c.servicePlan==="Annual service plan"?'<span class="pill green">Plan</span>':""}</div>`}).join("");
+  return list.map(c=>{const ss=systemsOf(c.id);const nu=ss.reduce((n,s)=>n+unitsOf(s.id).length,0);return `<div class="item click" onclick="location.hash='c-${c.id}'"><div class="main"><div class="t">${esc(c.name)}</div><div class="m">${esc(c.contactName||"")}${c.postcode?" · "+esc(c.postcode):""} · ${ss.length} system${ss.length===1?"":"s"}, ${nu} unit${nu===1?"":"s"}</div></div>${Billing.onPlan(c)?'<span class="pill green">Plan</span>':""}</div>`}).join("");
 }
 function viewClient(id){
   const c=client(id); if(!c) return notFound("client");
@@ -528,13 +534,13 @@ function viewClient(id){
     <dt>Billing address</dt><dd style="white-space:pre-line">${esc(c.billingAddress||"—")}${c.postcode?"\n"+esc(c.postcode):""}</dd>
     <dt>Prefers</dt><dd>${esc(c.preferredContact||"Email")}</dd>
     <dt>Reminders</dt><dd>${c.remindersOptIn===false?"Off":"On"}</dd>
-    <dt>Service plan</dt><dd>${esc(c.servicePlan||"None")}${c.servicePlan==="Annual service plan"&&c.planPrice?" · "+money(c.planPrice)+" + VAT":""}</dd>
-    <dt>${acc()} contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>
+    <dt>Billing</dt><dd>${esc(Billing.planLabel(c))}${Biz.isOwner&&Billing.onPlan(c)?" · "+(Billing.planBilling(c)==="visit"?money(Billing.planPrice(c))+" + VAT invoiced each visit":"paid separately, visits not invoiced"):""}</dd>
+    ${Biz.isOwner?`<dt>${acc()} contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>`:""}
     ${c.notes?`<dt>Notes</dt><dd style="white-space:pre-line">${esc(c.notes)}</dd>`:""}
   </dl></div>
   <div class="card"><h2>Systems <span class="pill">${ss.length}</span></h2><div class="list">${ss.length?ss.map(systemItem).join(""):'<div class="empty">No systems yet.</div>'}</div></div></div>
   <div class="grid2"><div class="card"><h2>Jobs</h2><div class="list">${jobs.length?jobs.map(jobItem).join(""):'<div class="empty">No jobs yet.</div>'}</div></div>
-  <div class="card"><h2>Invoices</h2><div class="list">${invs.length?invs.map(invItem).join(""):'<div class="empty">No invoices yet.</div>'}</div></div></div>`;
+  ${Biz.isOwner?`<div class="card"><h2>Invoices</h2><div class="list">${invs.length?invs.map(invItem).join(""):'<div class="empty">No invoices yet.</div>'}</div></div>`:""}</div>`;
 }
 function systemItem(s){const info=sysInfo(s);const ds=dueStatus(s,info);return `<div class="item click" onclick="location.hash='s-${s.id}'"><div class="main"><div class="t">${esc(s.name)}</div><div class="m">${esc(siteShort(s))} · ${esc(unitsSummary(s.id))} · ${esc(s.refrigerant||"")}</div></div><span class="pill ${ds.cls}">${esc(ds.label)}</span></div>`}
 function notFound(w){return `<div class="card"><h2>That ${w} wasn't found</h2><p class="note">It may have been deleted, or the QR label belongs to a different register.</p><a class="btn" href="#dashboard">Back to dashboard</a></div>`}
@@ -653,7 +659,7 @@ function viewJob(id){
   <div class="row" style="margin-bottom:14px">
     ${j.status==="booked"&&isInstall(j)?`<button class="btn" onclick="stickerPrompt('${s.id}')">📷 Scan sticker – add unit</button>`:""}
     ${j.status==="booked"?`<button class="btn pri" onclick="completeJob('${id}')">Complete job</button><button class="btn" onclick="exportCalendar(['${id}'])">📅 Add to iCloud</button><button class="btn" onclick="bookJob(null,'${id}')">Reschedule / edit</button><button class="btn" onclick="toggleOrdered('${id}')">${j.materialsOrdered?"Mark parts not ordered":"Mark parts ordered"}</button><button class="btn danger" onclick="cancelJob('${id}')">Cancel</button>`:""}
-    ${j.status==="completed"?(inv?`<a class="btn" href="#i-${inv.id}">Invoice ${esc(inv.number)}</a>`:`<button class="btn pri" onclick="createInvoice('${id}')">Create invoice</button>`)+`<button class="btn" onclick="ServiceReport.open('${id}')">📄 Service report</button><button class="btn" onclick="completeJob('${id}')">Edit ${isInstall(j)?"commissioning":"service"} record</button>`:""}
+    ${j.status==="completed"?(!Biz.isOwner?"":inv?`<a class="btn" href="#i-${inv.id}">Invoice ${esc(inv.number)}</a>`:j.billing==="plan"?`<span class="pill green">Covered by service plan</span><button class="btn" onclick="createInvoice('${id}')">Invoice anyway</button>`:`<button class="btn pri" onclick="createInvoice('${id}')">Create invoice</button>`)+`<button class="btn" onclick="ServiceReport.open('${id}')">📄 Service report</button><button class="btn" onclick="completeJob('${id}')">Edit ${isInstall(j)?"commissioning":"service"} record</button>`:""}
     ${j.status==="cancelled"?`<button class="btn" onclick="reopenJob('${id}')">Re-open</button><button class="btn danger" onclick="deleteJob('${id}')">Delete</button>`:""}
   </div>
   <div class="grid2"><div class="card"><h2>Visit</h2><dl class="kv">
@@ -666,8 +672,8 @@ function viewJob(id){
     <dt>Units</dt><dd>${us.map(u=>`<a class="uid" href="#u-${u.id}">${esc(u.id)}</a> <span class="note">${esc(unitLabel(u))}${u.location?" · "+esc(u.location):""}</span>`).join("<br>")||"—"}</dd>
     ${j.notes?`<dt>Notes</dt><dd style="white-space:pre-line">${esc(j.notes)}</dd>`:""}
   </dl></div>
-  <div class="card"><h2>Materials for this job <span class="sp"></span>${j.materialsOrdered?'<span class="pill green">Ordered</span>':""}</h2>
-    ${mats.length?`<table class="t"><thead><tr><th>Item</th><th>Supplier</th><th class="n">Qty</th></tr></thead><tbody>${mats.map(m=>`<tr><td>${esc(m.name)}${m.sku?` <span class="note">${esc(m.sku)}</span>`:""}${m.chargeable?' <span class="pill grey">chargeable</span>':""}</td><td>${esc(m.supplier)}</td><td class="n">${m.qty}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">No materials matched. Set up your service kit in <a href="#materials">Materials</a>.</div>'}
+  <div class="card"><h2>${j.status==="completed"?"Parts & materials used":"Materials for this job"} <span class="sp"></span>${j.materialsOrdered?'<span class="pill green">Ordered</span>':""}</h2>
+    ${mats.length?`<table class="t"><thead><tr><th>Item</th><th>Supplier</th><th class="n">Qty</th></tr></thead><tbody>${mats.map(m=>`<tr><td>${esc(m.name)}${m.sku?` <span class="note">${esc(m.sku)}</span>`:""}${m.extra?' <span class="pill grey">added by engineer</span>':""}${Biz.isOwner&&Billing.linePrice(m).chargeable?' <span class="pill grey">chargeable</span>':""}</td><td>${esc(m.supplier)}</td><td class="n">${m.qty}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">No materials matched. Set up your service kit in <a href="#materials">Materials</a>.</div>'}
   </div></div>
   ${j.status==="completed"?ServiceReport.card(j)+jobRecord(j,us):""}
   ${reportsCard({jobId:id,systemId:s.id},"Job reports & photos")}`;
@@ -689,10 +695,11 @@ function viewOrders(){
   const pending=jobs.filter(j=>!j.materialsOrdered);
   const agg=aggregate(pending);
   const bySup={}; for(const m of agg){(bySup[m.supplier]=bySup[m.supplier]||[]).push(m)}
+  const own=Biz.isOwner;
   return `<h1 class="pg">Orders</h1><div class="sub">Service materials needed for booked jobs, worked out from each system's units</div>
   <div class="seg">${[7,14,30,60].map(d=>`<button class="${ui.orderDays===d?"on":""}" onclick="ui.orderDays=${d};render()">Next ${d} days</button>`).join("")}</div>
   <div class="card"><h2>To order <span class="pill">${pending.length} job${pending.length===1?"":"s"}</span><span class="sp"></span>${agg.length?`<button class="btn sm" onclick="copyOrder()">Copy order</button><button class="btn sm" onclick="downloadOrder()">CSV</button>`:""}</h2>
-  ${agg.length?Object.entries(bySup).map(([sup,items])=>`<div class="sec" style="border:0;margin-top:6px;padding-top:0">${esc(sup)}</div><table class="t"><thead><tr><th>Item</th><th>Code</th><th class="n">Qty</th><th class="n">Est. cost</th></tr></thead><tbody>${items.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.sku)}</td><td class="n">${m.qty}</td><td class="n">${money(m.qty*m.cost)}</td></tr>`).join("")}</tbody></table>`).join("")+`<div class="tot">Estimated total <b>${money(agg.reduce((t,m)=>t+m.qty*m.cost,0))}</b> + VAT</div><div class="actions"><button class="btn pri" onclick="markAllOrdered()">Mark these ${pending.length} jobs as ordered</button></div>`:'<div class="empty">Nothing to order for jobs in this window.</div>'}
+  ${agg.length?Object.entries(bySup).map(([sup,items])=>`<div class="sec" style="border:0;margin-top:6px;padding-top:0">${esc(sup)}</div><table class="t"><thead><tr><th>Item</th><th>Code</th><th class="n">Qty</th>${own?'<th class="n">Est. cost</th>':""}</tr></thead><tbody>${items.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.sku)}</td><td class="n">${m.qty}</td>${own?`<td class="n">${money(m.qty*Billing.linePrice(m).cost)}</td>`:""}</tr>`).join("")}</tbody></table>`).join("")+(own?`<div class="tot">Estimated total <b>${money(agg.reduce((t,m)=>t+m.qty*Billing.linePrice(m).cost,0))}</b> + VAT</div>`:"")+`<div class="actions"><button class="btn pri" onclick="markAllOrdered()">Mark these ${pending.length} jobs as ordered</button></div>`:'<div class="empty">Nothing to order for jobs in this window.</div>'}
   </div>
   <div class="card"><h2>Jobs in window</h2><div class="list">${jobs.length?jobs.map(jobItem).join(""):'<div class="empty">No booked jobs.</div>'}</div></div>`;
 }
@@ -703,7 +710,7 @@ function aggregate(jobs){
 }
 function pendingAgg(){const end=addDays(todayISO(),ui.orderDays);return aggregate(S.jobs.filter(j=>j.status==="booked"&&j.date<=end&&!j.materialsOrdered))}
 function copyOrder(){const a=pendingAgg();const by={};for(const m of a)(by[m.supplier]=by[m.supplier]||[]).push(m);copyText(Object.entries(by).map(([s,items])=>s+"\n"+items.map(m=>`${m.qty} x ${m.name}${m.sku?" ("+m.sku+")":""}`).join("\n")).join("\n\n"))}
-function downloadOrder(){const a=pendingAgg();saveFile("airledger-order-"+todayISO()+".csv",toCSV([["Supplier","Item","Code","Qty","Unit cost","Line cost"],...a.map(m=>[m.supplier,m.name,m.sku,m.qty,m.cost.toFixed(2),(m.qty*m.cost).toFixed(2)])]))}
+function downloadOrder(){const a=pendingAgg(),own=Biz.isOwner;saveFile("airledger-order-"+todayISO()+".csv",toCSV([["Supplier","Item","Code","Qty",...(own?["Unit cost","Line cost"]:[])],...a.map(m=>{const c=Billing.linePrice(m).cost;return [m.supplier,m.name,m.sku,m.qty,...(own?[c.toFixed(2),(m.qty*c).toFixed(2)]:[])]})]))}
 async function markAllOrdered(){const end=addDays(todayISO(),ui.orderDays);for(const j of S.jobs.filter(j=>j.status==="booked"&&j.date<=end&&!j.materialsOrdered)){const d=clone(j);d.materialsOrdered=true;d.materialsSnapshot=materialsFor(j);await put("jobs",j.id,d)}toast("Marked as ordered")}
 async function toggleOrdered(id){const j=clone(job(id));j.materialsOrdered=!j.materialsOrdered;j.materialsSnapshot=j.materialsOrdered?materialsFor(j):null;if(await put("jobs",id,j))toast(j.materialsOrdered?"Parts marked as ordered":"Parts marked as not ordered")}
 
@@ -713,7 +720,7 @@ function invItem(i){const c=client(i.clientId)||{};const t=invTotals(i);return `
 function viewInvoices(){
   const v=ui.invView; const list=S.invoices.filter(i=>v==="all"||(v==="draft"?i.status!=="exported":i.status==="exported")).sort(byDateDesc);
   const drafts=S.invoices.filter(i=>i.status!=="exported");
-  return `<h1 class="pg">Invoices</h1><div class="sub">Created from completed jobs, then sent to ${acc()} as ${acc()==="Xero"?"draft invoices":"invoices"}</div>
+  return `<h1 class="pg">Invoices</h1><div class="sub">Built automatically when a job is completed, then sent to ${acc()} as ${acc()==="Xero"?"draft invoices":"invoices"}</div>
   <div class="row" style="margin-bottom:12px"><button class="btn pri" ${drafts.length?"":"disabled"} onclick="exportInvoices()">Export ${drafts.length} to ${acc()}</button><button class="btn" onclick="createInvoice()">+ Blank invoice</button></div>
   <div class="card" style="font-size:13.5px">${acc()==="Xero"?`<b>Getting them into Xero:</b> tap <i>Export to Xero</i> to save a CSV, then in Xero go to <b>Sales → Invoices → Import</b> and upload it. They arrive as drafts for you to approve and send. Contacts are matched by name, so keep the client's <i>contact name in accounts</i> the same as in Xero.`:`<b>Getting them into QuickBooks:</b> tap <i>Export to QuickBooks</i> to save a CSV, then in QuickBooks Online go to <b>Settings (gear) → Import data → Invoices</b>, upload it and check the column mapping. Up to 100 invoices per file. Customers are matched by name, so keep the client's <i>contact name in accounts</i> the same as in QuickBooks. The product/service and VAT code in Settings must already exist in QuickBooks.`}</div>
   <div class="seg">${[["draft","Not in "+acc()],["exported","In "+acc()],["all","All"]].map(([k,l])=>`<button class="${v===k?"on":""}" onclick="ui.invView='${k}';render()">${l}</button>`).join("")}</div>
@@ -735,8 +742,8 @@ function viewMaterials(){
   return `<h1 class="pg">Materials</h1><div class="sub">Your service kit. Each job works out quantities from the units on the system.</div>
   <div class="row" style="margin-bottom:12px"><button class="btn pri" onclick="editMaterial()">+ Add item</button></div>
   <div class="card"><div class="tw"><table class="t"><thead><tr><th>Item</th><th>Rule</th><th>When</th><th class="n">Cost</th><th class="n">Charge</th><th></th></tr></thead><tbody>
-  ${list.length?list.map(m=>`<tr style="${m.active===false?"opacity:.5":""}"><td><b>${esc(m.name)}</b><div class="note">${esc(m.supplier||"Unassigned")}${m.sku?" · "+esc(m.sku):""}</div></td><td>${num(m.qtyPer,3)} × ${esc((APPLIES[m.appliesTo]||"").replace("Per ","").toLowerCase())}</td><td>${esc(WHEN[m.when||"service"])}</td><td class="n">${money(m.cost)}</td><td class="n">${m.chargeable?money(m.sell):"—"}</td><td class="n"><button class="btn sm" onclick="editMaterial('${m.id}')">Edit</button></td></tr>`).join(""):'<tr><td colspan="6" class="empty">No materials yet.</td></tr>'}
-  </tbody></table></div><p class="note">Quantities are rounded up per job, so 0.25 × 3 indoor units = 1 can. Items marked chargeable are added to the invoice at the charge price.</p></div>`;
+  ${list.length?list.map(m=>`<tr style="${m.active===false?"opacity:.5":""}"><td><b>${esc(m.name)}</b><div class="note">${esc(m.supplier||"Unassigned")}${m.sku?" · "+esc(m.sku):""}</div></td><td>${num(m.qtyPer,3)} × ${esc((APPLIES[m.appliesTo]||"").replace("Per ","").toLowerCase())}</td><td>${esc(WHEN[m.when||"service"])}</td>${(p=>`<td class="n">${money(p.cost)}</td><td class="n">${p.chargeable?money(p.sell):"—"}</td>`)(Billing.matPrice(m))}<td class="n"><button class="btn sm" onclick="editMaterial('${m.id}')">Edit</button></td></tr>`).join(""):'<tr><td colspan="6" class="empty">No materials yet.</td></tr>'}
+  </tbody></table></div><p class="note">Quantities are rounded up per job, so 0.25 × 3 indoor units = 1 can. Items marked chargeable are added to the invoice at the charge price. Engineers can add any item here to a job as a part used; set "Needed for" to "Only when the engineer adds it" for parts and extra work that aren't part of every service.</p></div>`;
 }
 
 /* ---------- settings ---------- */
@@ -759,13 +766,6 @@ const SETTINGS_FIELDS=[
   {k:"emailSubject",label:"Reminder email subject",full:true},
   {k:"emailBody",label:"Reminder email",type:"textarea",full:true,hint:"Placeholders: {contact} {client} {site} {dueDate} {units} {phone} {engineer} {business}"},
   {k:"smsBody",label:"Reminder text message",type:"textarea",full:true},
-  {sec:"Pricing (ex VAT)"},
-  {k:"labourFirst",label:"Service – first indoor unit (£)",type:"number"},
-  {k:"labourAdditional",label:"Service – each additional indoor unit (£)",type:"number"},
-  {k:"leakCheckCharge",label:"Mandatory F-gas leak check (£)",type:"number"},
-  {k:"refrigerantPerKg",label:"Refrigerant top-up per kg (£)",type:"number"},
-  {k:"calloutCharge",label:"Repair call-out (£)",type:"number"},
-  {k:"labourHourly",label:"Labour per hour (£)",type:"number"},
   {sec:"Invoices & accounts"},
   {k:"accountsApp",label:"Accounts software",type:"select",options:[["xero","Xero"],["quickbooks","QuickBooks Online"]],hint:"Sets which CSV format invoices export in"},
   {k:"vatRegistered",label:"VAT registered (adds 20%)",type:"checkbox"},
@@ -783,7 +783,8 @@ const SETTINGS_FIELDS=[
 function viewSettings(){
   const st=set();
   return `<h1 class="pg">Settings</h1><div class="sub">Company profile, team, pricing, reminders and accounts details</div>
-  <div class="card" id="setForm">${formHTML(SETTINGS_FIELDS,st)}<div class="actions"><button class="btn pri" onclick="saveSettingsForm()">Save settings</button></div></div>
+  ${Biz.isOwner?`<div class="card" id="setForm">${formHTML(SETTINGS_FIELDS,st)}<div class="actions"><button class="btn pri" onclick="saveSettingsForm()">Save settings</button></div></div>
+  ${Billing.settingsCard()}`:`<div class="card"><h2>${esc(st.businessName)}</h2><p class="note" style="margin-top:0">You're signed in as an engineer. The business owner looks after company details, prices and invoices.</p></div>`}
   ${Biz.settingsCards()}
   <div class="card"><h2>Backup & records</h2><div class="row"><button class="btn" onclick="backup()">Download full backup (JSON)</button><button class="btn" onclick="restoreBackup()">Restore from backup</button><button class="btn" onclick="signOut()">Sign out</button><button class="btn" onclick="exportFgas()">F-gas register (CSV)</button></div><p class="note">Keep F-gas records for at least 5 years.</p></div>`;
 }
@@ -794,6 +795,7 @@ function formHTML(fields,v){
   let h='<div class="fg">';
   for(const f of fields){
     if(f.sec){h+=`<div class="full sec">${esc(f.sec)}</div>`;continue}
+    if(f.owner&&!Biz.isOwner) continue;
     const id="f_"+f.k; const val=v[f.k]??f.def??""; const cls="f"+(f.full?" full":"")+(f.type==="checkbox"?" cb":"");
     let inp;
     if(f.type==="select"){const opts=typeof f.options==="function"?f.options():f.options;inp=`<select id="${id}">${opts.map(o=>{const [ov,ol]=Array.isArray(o)?o:[o,o];return `<option value="${esc(ov)}" ${String(ov)===String(val)?"selected":""}>${esc(ol)}</option>`}).join("")}</select>`}
@@ -826,20 +828,23 @@ const CLIENT_FIELDS=[
   {k:"contactName",label:"Contact name"},{k:"phone",label:"Phone",type:"tel"},
   {k:"email",label:"Email",type:"email"},{k:"preferredContact",label:"Prefers",type:"select",options:["Email","Phone","Text message","WhatsApp"]},
   {k:"billingAddress",label:"Billing address",type:"textarea"},{k:"postcode",label:"Postcode"},
-  {k:"servicePlan",label:"Service plan",type:"select",options:["None","Annual service plan"]},{k:"planPrice",label:"Plan price per visit (£ ex VAT)",type:"number"},
-  {k:"xeroContactName",label:"Contact name in accounts",hint:"As it appears in Xero or QuickBooks. Leave blank to use the client name"},
+  {k:"servicePlan",label:"Billing",type:"select",options:[["None","Out of contract (charged per job)"],["Annual service plan","Service plan (fixed price)"]],hint:"Service plan: routine services are covered. Out of contract: every visit is invoiced from your price list"},
+  {k:"planBilling",label:"How the plan is paid",type:"select",owner:true,options:[["separate","Monthly / yearly, outside Air Ledger (no invoice for covered visits)"],["visit","Invoice the plan price at each service"]]},
+  {k:"planPrice",label:"Plan price per service (£ ex VAT)",type:"number",owner:true,hint:"Only used if the plan is invoiced at each service"},
+  {k:"xeroContactName",label:"Contact name in accounts",owner:true,hint:"As it appears in Xero or QuickBooks. Leave blank to use the client name"},
   {k:"remindersOptIn",label:"Send service reminders",type:"checkbox",def:true},
   {k:"notes",label:"Notes",type:"textarea",full:true}
 ];
 function editClient(id){
   const c=id?clone(client(id)):{remindersOptIn:true};
+  if(id&&Biz.isOwner){c.planPrice=Billing.planPrice(c);if(c.planBilling==null)c.planBilling=Billing.planBilling(c)}
   openModal(id?"Edit client":"New client",formHTML(CLIENT_FIELDS,c)+`<div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" id="sv">${id?"Save":"Create client"}</button></div>`,md=>{
-    $("#sv",md).onclick=async()=>{const v=readForm(md,CLIENT_FIELDS);if(missing(CLIENT_FIELDS,v))return;const nid=id||"c"+rid(9);const body=Object.assign(c,v,{updatedAt:todayISO()});if(!id)body.createdAt=todayISO();if(await put("clients",nid,body)){closeModal();toast(id?"Client saved":"Client created");if(!id)location.hash="c-"+nid}};
+    $("#sv",md).onclick=async()=>{const v=readForm(md,CLIENT_FIELDS);if(missing(CLIENT_FIELDS,v))return;const nid=id||"c"+rid(9);const body=Object.assign(c,v,{updatedAt:todayISO()});if(!id)body.createdAt=todayISO();if(await Billing.saveSplit("clients",nid,body,["planPrice"],"client:")){closeModal();toast(id?"Client saved":"Client created");if(!id)location.hash="c-"+nid}};
   });
 }
 async function deleteClient(id){
   if(systemsOf(id).length){toast("Delete or move this client's systems first","err");return}
-  if(await confirmBox("Delete this client? This can't be undone.")){await remove("clients",id);location.hash="clients"}
+  if(await confirmBox("Delete this client? This can't be undone.")){await remove("clients",id);await Billing.dropPrices("client:"+id);location.hash="clients"}
 }
 
 /* ---------- system CRUD ---------- */
@@ -936,18 +941,19 @@ function bookJob(sid,jobId){
   const st=set(); const existing=jobId?clone(job(jobId)):null;
   sid=sid||(existing&&existing.systemId)||"";
   const s=sid?system(sid):null; const nInd=s?unitsOf(sid).filter(u=>u.role==="indoor").length:1;
+  if(existing)existing.quote=Billing.quote(existing);
   const j=existing||{systemId:sid,type:s&&!jobsOf(sid).some(x=>x.status==="completed")&&(!s.installDate||s.installDate>=addDays(todayISO(),-14))?"Installation":"Annual service",date:addDays(todayISO(),7),time:"09:00",durationHrs:Math.max(1,0.5+0.5*nInd),engineer:st.engineer,status:"booked"};
   const F=[
     {k:"systemId",label:"System",type:"select",req:true,full:true,options:()=>[["","Choose system…"],...S.systems.filter(x=>!x.inactive).map(x=>[x.id,(client(x.clientId)?.name||"—")+" · "+x.name]).sort((a,b)=>a[1].localeCompare(b[1]))]},
     {k:"type",label:"Job type",type:"select",options:JOB_TYPES},{k:"engineer",label:"Engineer"},
     {k:"date",label:"Date",type:"date",req:true},{k:"time",label:"Start time",type:"time"},
     {k:"durationHrs",label:"Duration (hours)",type:"number"},
-    {k:"quote",label:"Quoted price £ ex VAT (installs)",type:"number",hint:"Used for the install invoice"},
+    {k:"quote",label:"Quoted price £ ex VAT (installs)",type:"number",owner:true,hint:"Used for the install invoice"},
     {k:"notes",label:"Notes for the engineer",type:"textarea",full:true}
   ];
   openModal(existing?"Edit booking":"Book a job",formHTML(F,j)+`<div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn" id="svC">Save & add to iCloud</button><button class="btn pri" id="sv">${existing?"Save":"Book job"}</button></div>`,md=>{
     const go=async(cal)=>{const v=readForm(md,F);if(missing(F,v))return;const nid=jobId||"j"+rid(9);const body=Object.assign(j,v,{updatedAt:todayISO()});if(!existing)body.createdAt=todayISO();
-      if(await put("jobs",nid,body)){closeModal();toast(existing?"Booking updated":"Job booked");if(cal)exportCalendar([nid]);else if(!existing)location.hash="j-"+nid}};
+      if(await Billing.saveSplit("jobs",nid,body,["quote"],"job:")){closeModal();toast(existing?"Booking updated":"Job booked");if(cal)exportCalendar([nid]);else if(!existing)location.hash="j-"+nid}};
     $("#sv",md).onclick=()=>go(false); $("#svC",md).onclick=()=>go(true);
   });
 }
@@ -990,14 +996,26 @@ function completeJob(id,fallback){
   <div class="f"><label>Job type</label><select id="cType">${JOB_TYPES.map(t=>`<option ${t===j.type?"selected":""}>${t}</option>`).join("")}</select></div><div class="f"><label>Time on site (hours)</label><input type="number" step="any" id="cHrs" value="${esc(j.durationHrs||"")}"></div></div>
   ${us.length?unitBlocks:`<div class="banner">No units on this system yet${inst?" – scan each asset sticker to add them before completing.":"."} <button class="btn sm" onclick="closeModal();stickerPrompt('${s.id}')">Add units</button></div>`}
   ${inst?commHTML:leakHTML}
+  <div class="sec">Parts & materials used</div>
+  <div class="tw"><table class="t lines"><tbody id="cParts"></tbody></table></div>
+  <div class="row" style="margin-top:6px;gap:6px"><select id="cPartSel" style="flex:1;min-width:0;padding:8px;border:1px solid var(--line);border-radius:9px;font:14px var(--f-body)"><option value="">Add a part or extra work…</option>${S.materials.filter(m=>m.active!==false).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("")}</select><button class="btn sm" id="cPartAdd" type="button">+ Add</button></div>
+  <p class="note">The service kit is filled in from the units. Change the quantities to what you used and add anything else. Prices are added by the office.</p>
   <div class="sec">Engineer report</div>
   <div class="f full"><textarea id="cNotes" style="min-height:110px" placeholder="Work carried out, findings, recommendations…">${esc(j.completionNotes||"")}</textarea></div>
   ${wasDone?"":`<div class="sec">Photos</div>${photoSectionHTML()}`}
-  <div class="actions"><button class="btn" onclick="closeModal()">Cancel</button>${wasDone?"":'<button class="btn" id="cSave">Complete</button>'}<button class="btn pri" id="cInv">${wasDone?"Save":"Complete & invoice"}</button></div>`,md=>{
-    const setBusy=b=>{$$("#cSave,#cInv",md).forEach(x=>x.disabled=b)};
+  <div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" id="cSave">${wasDone?"Save":"Complete job"}</button></div>`,md=>{
+    const setBusy=b=>{$$("#cSave",md).forEach(x=>x.disabled=b)};
+    const line=m=>({id:m.id,name:m.name,sku:m.sku||"",supplier:m.supplier||"Unassigned",qty:Number(m.qty)||0,...(m.extra?{extra:true}:{})});
+    const parts=(wasDone?(j.materialsUsed||[]):jobMaterials(job(id)||j)).map(line);
+    const drawParts=()=>{$("#cParts",md).innerHTML=parts.length?parts.map((p,i)=>`<tr><td>${esc(p.name)}${p.extra?' <span class="pill grey">added</span>':""}</td><td style="width:80px"><input type="number" step="any" min="0" data-pq="${i}" value="${esc(p.qty)}"></td><td style="width:40px"><button class="btn sm" type="button" data-prm="${i}">×</button></td></tr>`).join(""):'<tr><td class="note">No parts recorded.</td></tr>'};
+    drawParts();
+    $("#cParts",md).addEventListener("input",e=>{const i=e.target.dataset.pq;if(i!=null)parts[+i].qty=Number(e.target.value)||0});
+    $("#cParts",md).addEventListener("click",e=>{const b=e.target.closest("[data-prm]");if(b){parts.splice(+b.dataset.prm,1);drawParts()}});
+    $("#cPartAdd",md).onclick=()=>{const m=S.materials.find(x=>x.id===$("#cPartSel",md).value);if(!m)return;
+      const have=parts.find(p=>p.id===m.id);if(have)have.qty=(Number(have.qty)||0)+1;else parts.push(line({...m,qty:1,extra:true}));$("#cPartSel",md).value="";drawParts()};
     if(!wasDone)photoPicker(md,photos,setBusy);
     $("#cType",md).onchange=()=>{const t=$("#cType",md).value;if(INSTALL_TYPES.includes(t)!==inst){j.type=t;closeModal();completeJob(id,j)}};
-    const go=async(inv)=>{
+    const go=async()=>{
       const uc={};
       $$("input[data-u]",md).forEach(el=>{const u=el.dataset.u;uc[u]=uc[u]||{};if(el.dataset.k)uc[u][el.dataset.k]=el.checked;else if(el.value!=="")uc[u][el.dataset.r]=el.value});
       const date=$("#cDate",md).value||todayISO(); const eng=$("#cEng",md).value.trim(); const notes=$("#cNotes",md).value.trim();
@@ -1009,38 +1027,45 @@ function completeJob(id,fallback){
       }else{
         d.leakCheck={performed:$("#lcDone",md).checked,method:$("#lcMeth",md).value,result:$("#lcRes",md).value,addedKg:Number($("#lcAdd",md).value)||0,recoveredKg:Number($("#lcRec",md).value)||0,notes:$("#lcNotes",md).value.trim()};
       }
-      if(!wasDone) d.materialsUsed=jobMaterials(job(id)||d);
+      d.materialsUsed=parts.filter(p=>Number(p.qty)>0);
+      if(!wasDone) d.toInvoice=true; // an owner's device prices it and builds the invoice (billing.js)
       if(!await put("jobs",id,d)) return;
       if(inst&&s.id){const sd=clone(system(s.id));if(d.type==="Installation")sd.installDate=date;if(d.commissioning.addedKg!=="")sd.addedChargeKg=d.commissioning.addedKg;if(eng)sd.commissionedBy=eng;await put("systems",s.id,sd)}
       if(!wasDone&&(photos.length||notes)){await put("reports","r"+rid(9),{systemId:s.id,jobId:id,unitId:"",kind:inst?"Install / commissioning report":"Service report",date,author:eng,text:notes,photos,createdAt:new Date().toISOString()})}
       closeModal();toast(wasDone?"Record saved":inst?"Install completed – first service due "+fmtDate(addMonths(date,info.interval)):"Job completed – next service due "+fmtDate(addMonths(date,info.interval)));
-      if(inv&&!wasDone)setTimeout(()=>createInvoice(id),150);else{location.hash="j-"+id;if(!wasDone)setTimeout(()=>ServiceReport.signOff(id),150)}};
-    if($("#cSave",md))$("#cSave",md).onclick=()=>go(false);
-    $("#cInv",md).onclick=()=>go(!wasDone);
+      location.hash="j-"+id;if(!wasDone)setTimeout(()=>ServiceReport.signOff(id),150)};
+    $("#cSave",md).onclick=go;
   });
 }
 async function cancelJob(id){if(await confirmBox("Cancel this booking?","Cancel booking")){const j=clone(job(id));j.status="cancelled";await put("jobs",id,j)}}
 async function reopenJob(id){const j=clone(job(id));j.status="booked";await put("jobs",id,j)}
-async function deleteJob(id){if(await confirmBox("Delete this job permanently?")){await remove("jobs",id);location.hash="jobs"}}
+async function deleteJob(id){if(await confirmBox("Delete this job permanently?")){await remove("jobs",id);await Billing.dropPrices("job:"+id);location.hash="jobs"}}
 
 /* ---------- invoices ---------- */
+// Prices a completed job from the owner's price list. For a client on a service plan the routine visit
+// (service or leak check labour, the mandatory leak check and the service kit) is covered by the plan;
+// repairs, call-outs, refrigerant and parts the engineer added are charged.
 function invoiceLines(j){
-  const st=set(); const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id);
+  const st=Billing.prices(); const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id);
   const nInd=Math.max(1,us.filter(u=>u.role==="indoor").length); const L=[]; const site=siteShort(s);
-  const plan=c.servicePlan==="Annual service plan"&&c.planPrice;
+  const covered=Billing.onPlan(c)&&(SERVICE_TYPES.includes(j.type)||j.type==="Leak check");
+  const planPrice=Number(Billing.planPrice(c))||0;
+  if(covered&&Billing.planBilling(c)==="visit"&&planPrice) L.push({desc:`${j.type==="Leak check"?"F-gas leak check":"Annual air conditioning service"} (service plan) – ${s.name}, ${site} – ${nInd} indoor unit${nInd>1?"s":""}`,qty:1,unit:planPrice});
   if(SERVICE_TYPES.includes(j.type)){
-    if(plan) L.push({desc:`Annual air conditioning service (service plan) – ${s.name}, ${site} – ${nInd} indoor unit${nInd>1?"s":""}`,qty:1,unit:Number(c.planPrice)});
-    else{L.push({desc:`Annual air conditioning service – ${s.name}, ${site} (first indoor unit + outdoor)`,qty:1,unit:Number(st.labourFirst)});
+    if(!covered){L.push({desc:`Annual air conditioning service – ${s.name}, ${site} (first indoor unit + outdoor)`,qty:1,unit:Number(st.labourFirst)});
       if(nInd>1)L.push({desc:"Additional indoor unit serviced",qty:nInd-1,unit:Number(st.labourAdditional)})}
     if(j.type==="Service + repair"&&j.durationHrs)L.push({desc:"Repair labour",qty:1,unit:Number(st.labourHourly)});
-  }else if(j.type==="Leak check"){L.push({desc:`F-gas leak check – ${s.name}, ${site}`,qty:1,unit:Number(st.leakCheckCharge)})}
+  }else if(j.type==="Leak check"){if(!covered)L.push({desc:`F-gas leak check – ${s.name}, ${site}`,qty:1,unit:Number(st.leakCheckCharge)})}
   else if(j.type==="Repair / breakdown"){L.push({desc:`Call-out – ${s.name}, ${site}`,qty:1,unit:Number(st.calloutCharge)});const h=Math.max(0,(Number(j.durationHrs)||1)-1);if(h)L.push({desc:"Additional labour (hours)",qty:h,unit:Number(st.labourHourly)})}
-  else if(isInstall(j)&&Number(j.quote)) L.push({desc:j.type==="Installation"?`Supply and installation of air conditioning – ${s.name}, ${site} (${unitsSummary(s.id)})`:`Commissioning – ${s.name}, ${site}`,qty:1,unit:Number(j.quote)});
+  else if(isInstall(j)&&Number(Billing.quote(j))) L.push({desc:j.type==="Installation"?`Supply and installation of air conditioning – ${s.name}, ${site} (${unitsSummary(s.id)})`:`Commissioning – ${s.name}, ${site}`,qty:1,unit:Number(Billing.quote(j))});
   else L.push({desc:`${j.type} – ${s.name}, ${site}`,qty:Number(j.durationHrs)||1,unit:Number(st.labourHourly)});
   const info=sysInfo(s);
-  if(SERVICE_TYPES.includes(j.type)&&info.f.required&&j.leakCheck&&j.leakCheck.performed)L.push({desc:`Mandatory F-gas leak check (${num(info.f.t)} t CO₂e)`,qty:1,unit:Number(st.leakCheckCharge)});
+  if(!covered&&SERVICE_TYPES.includes(j.type)&&info.f.required&&j.leakCheck&&j.leakCheck.performed)L.push({desc:`Mandatory F-gas leak check (${num(info.f.t)} t CO₂e)`,qty:1,unit:Number(st.leakCheckCharge)});
   if(j.leakCheck&&j.leakCheck.addedKg)L.push({desc:`${s.refrigerant||"Refrigerant"} top-up (kg)`,qty:Number(j.leakCheck.addedKg),unit:Number(st.refrigerantPerKg)});
-  for(const m of (j.materialsUsed||materialsFor(j)))if(m.chargeable&&m.qty)L.push({desc:m.name,qty:m.qty,unit:m.sell});
+  for(const m of (j.materialsUsed||materialsFor(j))){
+    if(!m.qty||(covered&&!m.extra)) continue;
+    const p=Billing.linePrice(m); if(p.chargeable)L.push({desc:m.name,qty:m.qty,unit:p.sell});
+  }
   return L.map(l=>({...l,unit:r2(l.unit)}));
 }
 function createInvoice(jobId){
@@ -1080,7 +1105,7 @@ function invoiceEditor(id,inv){
         closeModal();toast(id?"Invoice saved":"Invoice "+body.number+" created");location.hash="i-"+nid}};
   });
 }
-async function deleteInvoice(id){const i=invoice(id);if(await confirmBox("Delete invoice "+i.number+"? If it's already in "+acc()+", void it there too.")){if(i.jobId&&job(i.jobId)){const d=clone(job(i.jobId));d.invoiceId="";await put("jobs",d.id,d)}await remove("invoices",id);location.hash="invoices"}}
+async function deleteInvoice(id){const i=invoice(id);if(await confirmBox("Delete invoice "+i.number+"? If it's already in "+acc()+", void it there too.")){if(i.jobId&&job(i.jobId)){const d=clone(job(i.jobId));d.invoiceId="";delete d.toInvoice;await put("jobs",d.id,d)}await remove("invoices",id);location.hash="invoices"}}
 async function markInv(id,status){const d=clone(invoice(id));d.status=status;if(status!=="exported")d.exportedAt="";await put("invoices",id,d)}
 function toCSV(rows){return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(",")).join("\r\n")+"\r\n"}
 async function exportInvoices(ids){
@@ -1112,15 +1137,16 @@ function quickbooksRows(list,st){
 const MAT_FIELDS=[
   {k:"name",label:"Item",req:true,full:true},{k:"supplier",label:"Supplier"},{k:"sku",label:"Supplier code"},
   {k:"appliesTo",label:"Quantity based on",type:"select",options:Object.entries(APPLIES)},{k:"qtyPer",label:"Quantity each",type:"number",hint:"e.g. 0.25 = a quarter can per unit"},
-  {k:"when",label:"Needed for",type:"select",options:Object.entries(WHEN)},{k:"cost",label:"Cost price (£)",type:"number"},
+  {k:"when",label:"Needed for",type:"select",options:Object.entries(WHEN),hint:"Service kit is worked out for each job. Engineers can also add any item as a part used"},{k:"cost",label:"Cost price (£)",type:"number"},
   {k:"chargeable",label:"Charge to client on invoice",type:"checkbox"},{k:"sell",label:"Charge price (£ ex VAT)",type:"number"},
   {k:"active",label:"In use",type:"checkbox",def:true}
 ];
 function editMaterial(id){
   const m=id?clone(S.materials.find(x=>x.id===id)):{appliesTo:"indoor",qtyPer:1,when:"service",active:true};
+  if(id)Object.assign(m,Billing.matPrice(m));
   openModal(id?"Edit material":"Add material",formHTML(MAT_FIELDS,m)+`<div class="actions">${id?'<button class="btn danger" id="dl" style="margin-right:auto">Delete</button>':""}<button class="btn" onclick="closeModal()">Cancel</button><button class="btn pri" id="sv">Save</button></div>`,md=>{
-    $("#sv",md).onclick=async()=>{const v=readForm(md,MAT_FIELDS);if(missing(MAT_FIELDS,v))return;if(await put("materials",id||"m"+rid(9),Object.assign(m,v))){closeModal();toast("Saved")}};
-    if(id)$("#dl",md).onclick=async()=>{if(await confirmBox("Delete "+m.name+"?")) await remove("materials",id)};
+    $("#sv",md).onclick=async()=>{const v=readForm(md,MAT_FIELDS);if(missing(MAT_FIELDS,v))return;if(await Billing.saveSplit("materials",id||"m"+rid(9),Object.assign(m,v),Billing.MAT_KEYS,"mat:")){closeModal();toast("Saved")}};
+    if(id)$("#dl",md).onclick=async()=>{if(await confirmBox("Delete "+m.name+"?")){await remove("materials",id);await Billing.dropPrices("mat:"+id)}};
   });
 }
 

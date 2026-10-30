@@ -9,6 +9,8 @@ The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run
 - `supabase-multi-business.sql`: run once after that to give each business its own private data, invites and logos
 - `business.js`: sign-up, business set-up, company profile, team invites and account deletion
 - `service-report.js`: signed PDF service reports (engineer and customer sign on screen; sent to the client and the office)
+- `billing.js`: the owner-only price list, and draft invoices built automatically from completed jobs
+- `supabase-pricing.sql`: run once after `supabase-multi-business.sql` so only owners can see prices and invoices
 - `manifest.json`, `icon-*.png`, `favicon-32.png`, `logo-reverse.svg`: Air Ledger branding and "Add to Home Screen" support
 
 ## Supabase setup (once)
@@ -52,3 +54,10 @@ When a job is completed the app asks the engineer, and the customer if they're t
 6. In the app: Settings → Service reports → fill in "Reports sent to" and tick "Email reports automatically when signed".
 
 The function only sends a PDF from the signed-in user's own business folder, to at most 5 addresses.
+
+## Prices, engineers and invoices
+Owners set the price list in Settings → Price list, and part prices on the Materials page. Prices are kept in their own collection that only owners can read (`supabase-pricing.sql`), so an engineer's login never receives them.
+- Invite engineers from Settings → Team. They see clients, assets, jobs and orders, but not prices, invoices or the Materials page.
+- When booking a client in, set Billing to **Service plan** or **Out of contract**. For a plan, choose whether it's paid monthly/yearly outside Air Ledger or invoiced at the plan price each service.
+- The engineer completes the job: checks, leak check, refrigerant, time on site, and the parts used (the service kit is filled in; they can add any item from Materials).
+- The next time an owner has the app open, each newly completed job becomes a draft invoice. On a plan, the routine service, its leak check and the service kit are covered; repairs, call-outs, refrigerant and parts the engineer added are charged. Out of contract, everything is charged from the price list. A plan visit with nothing extra is marked "Covered by service plan" with no invoice.
