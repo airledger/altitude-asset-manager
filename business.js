@@ -165,7 +165,7 @@ const Biz = (()=>{
     ${owner?`<label class="btn">${o.logo_url?"Change logo":"Upload logo"}<input type="file" hidden accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="Biz.setLogo(this)"></label>${o.logo_url?`<button class="btn" onclick="Biz.setLogo(null)">Remove</button>`:""}`:""}</div>
     <p class="note" style="margin-top:12px">Your team's sign-in page shows your name and logo:</p>${linkRow(BASE+"?b="+o.slug)}
     ${owner?`<div class="row" style="margin-top:8px;align-items:center;gap:8px"><input id="bzSlug" value="${esc(o.slug)}" style="max-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:9px"><button class="btn" onclick="Biz.setSlug()">Change link</button></div>`:""}</div>`;
-    h+=`<div class="card"><h2>Team</h2>${st.team?`<div class="tw"><table class="t"><tbody>${st.team.map(m=>`<tr><td>${esc(m.email||"")}${m.user_id===me?" <span class=\"note\">(you)</span>":""}</td><td>${m.role==="owner"?"Owner":"Engineer"}</td><td class="n">${owner&&m.user_id!==me?`${m.role!=="owner"?`<button class="btn" onclick="Biz.makeOwner('${esc(m.user_id)}')">Make owner</button> `:""}<button class="btn" onclick="Biz.removeMember('${esc(m.user_id)}')">Remove</button>`:""}</td></tr>`).join("")}</tbody></table></div>`:'<p class="note">Loading…</p>'}
+    h+=`<div class="card"><h2>Team</h2><p class="note" style="margin-top:0">Engineers see clients, assets and jobs and record their work, but not prices or invoices. Owners see everything.</p>${st.team?`<div class="tw"><table class="t"><tbody>${st.team.map(m=>`<tr><td>${esc(m.email||"")}${m.user_id===me?" <span class=\"note\">(you)</span>":""}</td><td>${m.role==="owner"?"Owner":"Engineer"}</td><td class="n">${owner&&m.user_id!==me?`${m.role!=="owner"?`<button class="btn" onclick="Biz.makeOwner('${esc(m.user_id)}')">Make owner</button> `:""}<button class="btn" onclick="Biz.removeMember('${esc(m.user_id)}')">Remove</button>`:""}</td></tr>`).join("")}</tbody></table></div>`:'<p class="note">Loading…</p>'}
     ${owner?`<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><input id="bzInvEmail" type="email" placeholder="Their email (optional)" style="max-width:260px;padding:8px 10px;border:1px solid var(--line);border-radius:9px"><button class="btn pri" onclick="Biz.invite()">Invite to team</button></div>
     ${(st.invites||[]).length?`<p class="note" style="margin-top:10px">Invites waiting to be used. Send the link to the person:</p>${st.invites.map(i=>`<div style="margin-top:6px">${i.email?`<b>${esc(i.email)}</b> `:""}${linkRow(BASE+"?invite="+i.code)}<button class="btn" style="margin-top:4px" onclick="Biz.cancelInvite('${esc(i.code)}')">Cancel</button></div>`).join("")}`:""}`:""}</div>`;
     if(st.orgs.length>1) h+=`<div class="card"><h2>Your businesses</h2><div class="row" style="gap:8px;flex-wrap:wrap">${st.orgs.map(x=>`<button class="btn ${x.id===o.id?"pri":""}" onclick="Biz.switchTo('${x.id}')">${esc(x.name)}</button>`).join("")}</div></div>`;
@@ -207,7 +207,10 @@ const Biz = (()=>{
     o.slug=slug; Object.assign(st.org,o); const x=st.orgs.find(y=>y.id===o.id); if(x)Object.assign(x,o); schedule(); return true;
   }
   return {
-    get org(){return st.org}, signedOut, resolveOrg, signupScreen,
+    get org(){return st.org},
+    // Owners see prices and invoices; engineers ("member") don't. Without a business (offline demo) everything shows.
+    get isOwner(){return !st.org||st.role==="owner"},
+    signedOut, resolveOrg, signupScreen,
     settingsCards,
     async afterSettingsSaved(v){if(st.role==="owner"&&v.businessName&&v.businessName!==st.org.name)await saveOrg({name:v.businessName})},
     logoImg(h){return st.org&&st.org.logo_url?`<img src="${esc(st.org.logo_url)}" alt="" style="max-height:${h||56}px;max-width:200px;object-fit:contain;display:block;margin-bottom:6px">`:""},
