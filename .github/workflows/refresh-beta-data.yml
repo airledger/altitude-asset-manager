@@ -32,12 +32,20 @@ jobs:
           for v in SUPABASE_ACCESS_TOKEN PROD_PASSWORD BETA_PASSWORD; do
             [ -n "${!v}" ] || { echo "::error::Missing secret for $v"; exit 1; }
           done
-          url() { # $1 project ref, $2 password: link, then read the pooler address the CLI saved
-            SUPABASE_DB_PASSWORD="$2" supabase link --project-ref "$1" >/dev/null
-            cat supabase/.temp/pooler-url
-          }
-          echo "PROD_URL=$(url "$PROD_REF" "$PROD_PASSWORD")" >> "$GITHUB_ENV"
-          echo "BETA_URL=$(url "$BETA_REF" "$BETA_PASSWORD")" >> "$GITHUB_ENV"
+          # Beta: link with the access token and read the pooler address the CLI saves.
+          SUPABASE_DB_PASSWORD="$BETA_PASSWORD" supabase link --project-ref "$BETA_REF" >/dev/null
+          BETA_URL=$(cat supabase/.temp/pooler-url)
+          # Production may sit in a different Supabase account from the token, so find its pooler by trying
+          # London (eu-west-2) first, then other EU poolers, with the production password. Read-only probe: "select 1".
+          PROD_URL=""
+          for host in aws-{0,1}-eu-west-2 aws-{0,1}-eu-west-1 aws-{0,1}-eu-west-3 aws-{0,1}-eu-central-1; do
+            u="postgresql://postgres.$PROD_REF@$host.pooler.supabase.com:5432/postgres"
+            if PGPASSWORD="$PROD_PASSWORD" psql "$u" -X -q -t -c "select 1" >/dev/null 2>&1; then PROD_URL="$u"; break; fi
+          done
+          [ -n "$PROD_URL" ] || { echo "::error::Couldn't connect to production. Check SUPABASE_PROD_DB_PASSWORD."; exit 1; }
+          [ -n "$BETA_URL" ] || { echo "::error::Couldn't find the beta database address."; exit 1; }
+          echo "PROD_URL=$PROD_URL" >> "$GITHUB_ENV"
+          echo "BETA_URL=$BETA_URL" >> "$GITHUB_ENV"
       - name: Read production (read-only)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
