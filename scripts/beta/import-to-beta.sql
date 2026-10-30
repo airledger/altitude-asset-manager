@@ -14,6 +14,16 @@ delete from public.orgs;
 delete from auth.users;
 
 \copy auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) from 'users.csv' with (format csv, header);
+-- Supabase Auth fails sign-in ("Database error querying schema") if these are NULL rather than ''.
+update auth.users set
+  confirmation_token = coalesce(confirmation_token, ''),
+  recovery_token = coalesce(recovery_token, ''),
+  email_change = coalesce(email_change, ''),
+  email_change_token_new = coalesce(email_change_token_new, ''),
+  email_change_token_current = coalesce(email_change_token_current, ''),
+  phone_change = coalesce(phone_change, ''),
+  phone_change_token = coalesce(phone_change_token, ''),
+  reauthentication_token = coalesce(reauthentication_token, '');
 \copy auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at) from 'identities.csv' with (format csv, header);
 \copy public.orgs (id, name, slug, logo_url, created_by, created_at) from 'orgs.csv' with (format csv, header);
 \copy public.members (org_id, user_id, email, role, created_at) from 'members.csv' with (format csv, header);
