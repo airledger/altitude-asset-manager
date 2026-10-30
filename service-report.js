@@ -50,10 +50,13 @@ window.ServiceReport = (() => {
     return {data:cv.toDataURL("image/jpeg",0.78),w:cv.width,h:cv.height};
   }
   // Logos can be SVG, so draw them through an <img> rather than createImageBitmap.
-  function logoPng(url){
-    return new Promise(res=>{if(!url)return res(null);const im=new Image();im.crossOrigin="anonymous";
+  // Fetched as a blob first: the logo is often already cached from the settings page without CORS, which would block drawing it.
+  async function logoPng(url){
+    if(!url) return null;
+    let src=url; try{const r=await fetch(url,{cache:"no-store"});if(r.ok)src=URL.createObjectURL(await r.blob())}catch(e){}
+    return new Promise(res=>{const im=new Image();if(src===url)im.crossOrigin="anonymous";
       im.onload=()=>{try{const w=im.naturalWidth||600,h=im.naturalHeight||200,sc=Math.min(1,800/Math.max(w,h));const cv=document.createElement("canvas");cv.width=Math.round(w*sc);cv.height=Math.round(h*sc);cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);res({data:cv.toDataURL("image/png"),w:cv.width,h:cv.height})}catch(e){res(null)}};
-      im.onerror=()=>res(null);im.src=url});
+      im.onerror=()=>res(null);im.src=src});
   }
   async function sigImage(sig){
     if(!sig) return null;
@@ -66,14 +69,14 @@ window.ServiceReport = (() => {
     await loadLib();
     const {jsPDF}=window.jspdf;
     const st=set(), s=system(j.systemId)||{}, c=client(s.clientId)||{}, us=unitsOf(s.id), info=sysInfo(s), inst=isInstall(j);
-    const org=Biz.org||{}, lc=j.leakCheck||{}, cm=j.commissioning||{}, reps=jobReports(j.id);
+    const org=Biz.org||{}, bizName=org.name||st.businessName, lc=j.leakCheck||{}, cm=j.commissioning||{}, reps=jobReports(j.id);
     const title=inst?"Installation & Commissioning Report":"Service Report";
     const doc=new jsPDF({unit:"mm",format:"a4",compress:true});
     const PW=210, PH=297, M=15, W=PW-2*M, BOTTOM=PH-22;
     let y=M;
     const font=(size,style="normal",col=NAVY)=>{doc.setFont("helvetica",style);doc.setFontSize(size);doc.setTextColor(...col)};
     const lh=size=>size*0.42;
-    const newPage=()=>{doc.addPage();y=M;font(8,"normal",SLATE);doc.text(T(`${st.businessName} · ${title} · ${meta.ref}`),M,y);y+=6};
+    const newPage=()=>{doc.addPage();y=M;font(8,"normal",SLATE);doc.text(T(`${bizName} · ${title} · ${meta.ref}`),M,y);y+=6};
     const ensure=h=>{if(y+h>BOTTOM)newPage()};
     const wrap=(t,w)=>doc.splitTextToSize(T(t),w);
 
@@ -133,8 +136,8 @@ window.ServiceReport = (() => {
     /* header: company block (logo, name, address, contacts) and report title/ref */
     const logo=await logoPng(org.logo_url);
     let ly=M;
-    if(logo){const h=Math.min(18,40*logo.h/logo.w), w=h*logo.w/logo.h;doc.addImage(logo.data,"PNG",M,ly,w,h);ly+=h+3}
-    font(logo?12:16,"bold");doc.text(T(st.businessName),M,ly+(logo?3:5));ly+=logo?5:8;
+    if(logo){const h=Math.min(24,70*logo.h/logo.w), w=h*logo.w/logo.h;doc.addImage(logo.data,"PNG",M,ly,w,h);ly+=h+3}
+    font(logo?12:16,"bold");doc.text(T(bizName),M,ly+(logo?3:5));ly+=logo?5:8;
     font(8.5,"normal",SLATE);
     const coLines=[st.tradingAs?"Part of "+st.tradingAs:"",...String(st.address||"").split(/\n/).map(x=>x.trim()).filter(Boolean),[st.phone,st.email].filter(Boolean).join("  ·  "),st.website,st.fgasCert?"F-gas company certificate: "+st.fgasCert:""].filter(Boolean);
     for(const l of coLines){doc.text(T(l),M,ly+1.5);ly+=3.8}
@@ -227,13 +230,14 @@ window.ServiceReport = (() => {
 
     /* footer on every page */
     const n=doc.getNumberOfPages();
-    const legal=[st.businessName+(st.tradingAs?" - part of "+st.tradingAs:""),st.companyNo?"Company no. "+st.companyNo:"",st.vatNo?"VAT no. "+st.vatNo:""].filter(Boolean).join("  ·  ");
+    const legal=[bizName+(st.tradingAs?" - part of "+st.tradingAs:""),st.companyNo?"Company no. "+st.companyNo:"",st.vatNo?"VAT no. "+st.vatNo:""].filter(Boolean).join("  ·  ");
     for(let i=1;i<=n;i++){
       doc.setPage(i); doc.setDrawColor(...LINE); doc.line(M,PH-15,PW-M,PH-15);
       font(7.5,"normal",SLATE); doc.text(T(legal),M,PH-11); doc.text(T(`Ref ${meta.ref} · Page ${i} of ${n}`),PW-M,PH-11,{align:"right"});
-      font(6.5,"normal",SLATE); doc.text(T(`Record fingerprint ${meta.hash.slice(0,32)} · Original held by ${st.businessName}. Quote the reference to verify this report.`),M,PH-7.5);
+      font(6.5,"normal",SLATE); doc.text(T(`Record fingerprint ${meta.hash.slice(0,24)} · Original held by ${bizName}; quote the reference to verify.`),M,PH-7.5);
+      doc.setTextColor(...AIR); doc.textWithLink("Produced with Air Ledger · airledger.co.uk",PW-M-doc.getTextWidth("Produced with Air Ledger · airledger.co.uk"),PH-7.5,{url:"https://airledger.co.uk"});
     }
-    doc.setProperties({title:`${title} ${meta.ref}`,subject:`${c.name||""} - ${s.name||""}`,author:st.businessName,creator:"Air Ledger"});
+    doc.setProperties({title:`${title} ${meta.ref}`,subject:`${c.name||""} - ${s.name||""}`,author:bizName,creator:"Air Ledger"});
     return doc.output("blob");
   }
 
@@ -341,7 +345,7 @@ window.ServiceReport = (() => {
     const what=isInstall(j)?"installation":"service";
     return {to:(j.signoff&&j.signoff.clientEmail)||c.email||"",cc:st.reportEmail||st.email||"",what,
       subject:`${isInstall(j)?"Installation & commissioning":"Service"} report ${r.ref} – ${siteShort(s)}`,
-      message:`Hi ${(c.contactName||"").split(" ")[0]||"there"},\n\nPlease find your ${what} report for ${s.name||"your air conditioning"} at ${siteShort(s)}, completed on ${fmtDate(j.date)}. It lists the work carried out on each unit and is signed by our engineer. Please keep it for your records, as it is evidence of servicing for any warranty claim.\n\nReport reference: ${r.ref}\n\nKind regards,\n${(j.signoff&&j.signoff.engineerName)||st.engineer}\n${st.businessName}${st.phone?"\n"+st.phone:""}`};
+      message:`Hi ${(c.contactName||"").split(" ")[0]||"there"},\n\nPlease find your ${what} report for ${s.name||"your air conditioning"} at ${siteShort(s)}, completed on ${fmtDate(j.date)}. It lists the work carried out on each unit and is signed by our engineer. Please keep it for your records, as it is evidence of servicing for any warranty claim.\n\nReport reference: ${r.ref}\n\nKind regards,\n${(j.signoff&&j.signoff.engineerName)||st.engineer}\n${(Biz.org&&Biz.org.name)||st.businessName}${st.phone?"\n"+st.phone:""}\n\n--\nReport produced with Air Ledger · airledger.co.uk`};
   }
   const autoOn=()=>!!(set().autoEmailReports&&sb);
   // Sends through the send-report Supabase function (Resend), with the PDF attached.
