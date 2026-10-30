@@ -55,8 +55,16 @@ window.ServiceReport = (() => {
     if(!url) return null;
     let src=url; try{const r=await fetch(url,{cache:"no-store"});if(r.ok)src=URL.createObjectURL(await r.blob())}catch(e){}
     return new Promise(res=>{const im=new Image();if(src===url)im.crossOrigin="anonymous";
-      im.onload=()=>{try{const w=im.naturalWidth||600,h=im.naturalHeight||200,sc=Math.min(1,800/Math.max(w,h));const cv=document.createElement("canvas");cv.width=Math.round(w*sc);cv.height=Math.round(h*sc);cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);res({data:cv.toDataURL("image/png"),w:cv.width,h:cv.height})}catch(e){res(null)}};
+      im.onload=()=>{try{const w=im.naturalWidth||600,h=im.naturalHeight||200,sc=Math.min(1,800/Math.max(w,h));const cv=document.createElement("canvas");cv.width=Math.round(w*sc);cv.height=Math.round(h*sc);const g=cv.getContext("2d");g.drawImage(im,0,0,cv.width,cv.height);res(trim(cv,g))}catch(e){res(null)}};
       im.onerror=()=>res(null);im.src=src});
+  }
+  // Crop the empty margin many logo files have, so the logo lines up with the text under it.
+  function trim(cv,g){
+    const d=g.getImageData(0,0,cv.width,cv.height).data; let x0=cv.width,y0=cv.height,x1=-1,y1=-1;
+    for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++){const i=(y*cv.width+x)*4;if(d[i+3]>16&&(d[i]<235||d[i+1]<235||d[i+2]<235)){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+    if(x1<0) return {data:cv.toDataURL("image/png"),w:cv.width,h:cv.height};
+    const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(cv,x0,y0,o.width,o.height,0,0,o.width,o.height);
+    return {data:o.toDataURL("image/png"),w:o.width,h:o.height};
   }
   async function sigImage(sig){
     if(!sig) return null;
