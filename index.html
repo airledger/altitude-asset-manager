@@ -161,6 +161,7 @@ const DEFAULTS = {
   vatRegistered:true, invoicePrefix:"AC-", nextInvoiceNo:1001, paymentDays:14, accountCode:"200",
   taxType:"20% (VAT on Income)", trackingName:"", trackingOption:"",
   accountsApp:"xero", qbItem:"Services", qbTaxCode:"20.0% S",
+  sageNominal:"4000", sageTaxCode:"T1", sageNoVatCode:"T9",
   emailSubject:"Your air conditioning service is due – {site}",
   emailBody:"Hi {contact},\n\nOur records show the air conditioning at {site} ({units}) is due its annual service on {dueDate}.\n\nRegular servicing keeps the system running efficiently, keeps the air clean and keeps your manufacturer's warranty valid.\n\nJust reply to this email or call us on {phone} and we'll book a time that suits you.\n\nKind regards,\n{engineer}\n{business}",
   smsBody:"Hi {contact}, it's {engineer} from {business}. Your air con at {site} is due its annual service ({dueDate}). Reply or call {phone} to book a time. Thanks!"
@@ -200,7 +201,7 @@ function byDateDesc(a,b){return (b.date||"").localeCompare(a.date||"")||(b.time|
 function byDateAsc(a,b){return (a.date||"").localeCompare(b.date||"")||(a.time||"").localeCompare(b.time||"")}
 function clone(o){return JSON.parse(JSON.stringify(o??{}))}
 function set(){return Object.assign({},DEFAULTS,S.settings||{})}
-function acc(){return set().accountsApp==="quickbooks"?"QuickBooks":"Xero"}
+function acc(){return {quickbooks:"QuickBooks",sage:"Sage"}[set().accountsApp]||"Xero"}
 function toast(msg,kind){const t=$("#toast");t.textContent=msg;t.className="on"+(kind==="err"?" err":"");clearTimeout(toast._t);toast._t=setTimeout(()=>t.className="",kind==="err"?4500:2600)}
 function fill(tpl,map){return String(tpl||"").replace(/\{(\w+)\}/g,(m,k)=>map[k]!=null?map[k]:m)}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Copied")}catch(e){toast("Couldn't copy – select the text and copy manually","err")}}
@@ -536,7 +537,7 @@ function viewClient(id){
     <dt>Prefers</dt><dd>${esc(c.preferredContact||"Email")}</dd>
     <dt>Reminders</dt><dd>${c.remindersOptIn===false?"Off":"On"}</dd>
     <dt>Billing</dt><dd>${esc(Billing.planLabel(c))}${Biz.isOwner&&Billing.onPlan(c)?" · "+(Billing.planBilling(c)==="visit"?money(Billing.planPrice(c))+" + VAT invoiced each visit":"paid separately, visits not invoiced"):""}</dd>
-    ${Biz.isOwner?`<dt>${acc()} contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>`:""}
+    ${Biz.isOwner?(acc()==="Sage"?`<dt>Sage account ref</dt><dd>${esc(sageRef(c))}</dd>`:`<dt>${acc()} contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>`):""}
     ${c.notes?`<dt>Notes</dt><dd style="white-space:pre-line">${esc(c.notes)}</dd>`:""}
   </dl></div>
   <div class="card"><h2>Systems <span class="pill">${ss.length}</span></h2><div class="list">${ss.length?ss.map(systemItem).join(""):'<div class="empty">No systems yet.</div>'}</div></div></div>
@@ -723,7 +724,7 @@ function viewInvoices(){
   const drafts=S.invoices.filter(i=>i.status!=="exported");
   return `<h1 class="pg">Invoices</h1><div class="sub">Built automatically when a job is completed, then sent to ${acc()} as ${acc()==="Xero"?"draft invoices":"invoices"}</div>
   <div class="row" style="margin-bottom:12px"><button class="btn pri" ${drafts.length?"":"disabled"} onclick="exportInvoices()">Export ${drafts.length} to ${acc()}</button><button class="btn" onclick="createInvoice()">+ Blank invoice</button></div>
-  <div class="card" style="font-size:13.5px">${acc()==="Xero"?`<b>Getting them into Xero:</b> tap <i>Export to Xero</i> to save a CSV, then in Xero go to <b>Sales → Invoices → Import</b> and upload it. They arrive as drafts for you to approve and send. Contacts are matched by name, so keep the client's <i>contact name in accounts</i> the same as in Xero.`:`<b>Getting them into QuickBooks:</b> tap <i>Export to QuickBooks</i> to save a CSV, then in QuickBooks Online go to <b>Settings (gear) → Import data → Invoices</b>, upload it and check the column mapping. Up to 100 invoices per file. Customers are matched by name, so keep the client's <i>contact name in accounts</i> the same as in QuickBooks. The product/service and VAT code in Settings must already exist in QuickBooks.`}</div>
+  <div class="card" style="font-size:13.5px">${acc()==="Sage"?`<b>Getting them into Sage 50:</b> tap <i>Export to Sage</i> to save a CSV, then in Sage 50 Accounts take a backup and go to <b>File → Import → Audit Trail Transactions</b> and upload it. Each invoice arrives as a sales invoice (SI) on the customer's account. Customers are matched by account reference, so fill in the client's <i>Sage account reference</i> exactly as in Sage. The nominal code and tax codes in Settings must already exist in Sage.`:acc()==="Xero"?`<b>Getting them into Xero:</b> tap <i>Export to Xero</i> to save a CSV, then in Xero go to <b>Sales → Invoices → Import</b> and upload it. They arrive as drafts for you to approve and send. Contacts are matched by name, so keep the client's <i>contact name in accounts</i> the same as in Xero.`:`<b>Getting them into QuickBooks:</b> tap <i>Export to QuickBooks</i> to save a CSV, then in QuickBooks Online go to <b>Settings (gear) → Import data → Invoices</b>, upload it and check the column mapping. Up to 100 invoices per file. Customers are matched by name, so keep the client's <i>contact name in accounts</i> the same as in QuickBooks. The product/service and VAT code in Settings must already exist in QuickBooks.`}</div>
   <div class="seg">${[["draft","Not in "+acc()],["exported","In "+acc()],["all","All"]].map(([k,l])=>`<button class="${v===k?"on":""}" onclick="ui.invView='${k}';render()">${l}</button>`).join("")}</div>
   <div class="card"><div class="list">${list.length?list.map(invItem).join(""):'<div class="empty">No invoices here.</div>'}</div></div>`;
 }
@@ -768,7 +769,7 @@ const SETTINGS_FIELDS=[
   {k:"emailBody",label:"Reminder email",type:"textarea",full:true,hint:"Placeholders: {contact} {client} {site} {dueDate} {units} {phone} {engineer} {business}"},
   {k:"smsBody",label:"Reminder text message",type:"textarea",full:true},
   {sec:"Invoices & accounts"},
-  {k:"accountsApp",label:"Accounts software",type:"select",options:[["xero","Xero"],["quickbooks","QuickBooks Online"]],hint:"Sets which CSV format invoices export in"},
+  {k:"accountsApp",label:"Accounts software",type:"select",options:[["xero","Xero"],["quickbooks","QuickBooks Online"],["sage","Sage 50 Accounts"]],hint:"Sets which CSV format invoices export in"},
   {k:"vatRegistered",label:"VAT registered (adds 20%)",type:"checkbox"},
   {k:"invoicePrefix",label:"Invoice number prefix"},{k:"nextInvoiceNo",label:"Next invoice number",type:"number"},
   {k:"paymentDays",label:"Payment terms (days)",type:"number"},
@@ -779,7 +780,11 @@ const SETTINGS_FIELDS=[
   {k:"trackingOption",label:"Tracking option",hint:"e.g. Altitude Climate"},
   {sec:"QuickBooks Online"},
   {k:"qbItem",label:"Product/service",hint:"Exactly as in QuickBooks, e.g. Services"},
-  {k:"qbTaxCode",label:"VAT code",hint:"Exactly as in QuickBooks, e.g. 20.0% S"}
+  {k:"qbTaxCode",label:"VAT code",hint:"Exactly as in QuickBooks, e.g. 20.0% S"},
+  {sec:"Sage 50"},
+  {k:"sageNominal",label:"Sales nominal code",hint:"4000 is Sales in a standard Sage 50 chart"},
+  {k:"sageTaxCode",label:"VAT tax code",hint:"T1 is standard rate 20%"},
+  {k:"sageNoVatCode",label:"No-VAT tax code",hint:"T9 if you're not VAT registered, T0 for zero-rated"}
 ];
 function viewSettings(){
   const st=set();
@@ -833,6 +838,7 @@ const CLIENT_FIELDS=[
   {k:"planBilling",label:"How the plan is paid",type:"select",owner:true,options:[["separate","Monthly / yearly, outside Air Ledger (no invoice for covered visits)"],["visit","Invoice the plan price at each service"]]},
   {k:"planPrice",label:"Plan price per service (£ ex VAT)",type:"number",owner:true,hint:"Only used if the plan is invoiced at each service"},
   {k:"xeroContactName",label:"Contact name in accounts",owner:true,hint:"As it appears in Xero or QuickBooks. Leave blank to use the client name"},
+  {k:"sageRef",label:"Sage account reference",owner:true,hint:"The customer's A/C reference in Sage 50, e.g. ACME001"},
   {k:"remindersOptIn",label:"Send service reminders",type:"checkbox",def:true},
   {k:"notes",label:"Notes",type:"textarea",full:true}
 ];
@@ -1112,8 +1118,10 @@ function toCSV(rows){return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return 
 async function exportInvoices(ids){
   const st=set(); const list=ids?ids.map(invoice).filter(Boolean):S.invoices.filter(i=>i.status!=="exported");
   if(!list.length){toast("Nothing to export");return}
-  const qb=st.accountsApp==="quickbooks", rows=qb?quickbooksRows(list,st):xeroRows(list,st);
-  if(await saveFile((qb?"quickbooks":"xero")+"-invoices-"+todayISO()+".csv",toCSV(rows))){
+  const app={quickbooks:"quickbooks",sage:"sage"}[st.accountsApp]||"xero";
+  if(app==="sage"){const miss=list.filter(i=>!(client(i.clientId)||{}).sageRef);if(miss.length&&!await confirmBox(miss.length+" invoice"+(miss.length>1?"s have":" has")+" a client with no Sage account reference, so a reference will be made up from the client name and must match Sage. Export anyway?","Export"))return}
+  const rows={quickbooks:quickbooksRows,sage:sageRows,xero:xeroRows}[app](list,st);
+  if(await saveFile(app+"-invoices-"+todayISO()+".csv",toCSV(rows))){
     for(const i of list){const d=clone(i);d.status="exported";d.exportedAt=todayISO();await put("invoices",i.id,d)}
     toast(list.length+" invoice"+(list.length>1?"s":"")+" ready to import into "+acc());
   }
@@ -1131,6 +1139,15 @@ function quickbooksRows(list,st){
   for(const i of list){const c=client(i.clientId)||{};
     for(const l of i.lines){const amt=r2((Number(l.qty)||0)*(Number(l.unit)||0));
       rows.push([i.number,c.xeroContactName||c.name||"",fmtUK(i.date),fmtUK(i.dueDate),"","",i.reference||"",st.qbItem,l.desc,l.qty,Number(l.unit).toFixed(2),amt.toFixed(2),i.vat?st.qbTaxCode:"No VAT",i.vat?r2(amt*0.2).toFixed(2):"0.00","GBP",""])}}
+  return rows;
+}
+// Sage 50 audit trail import: one SI (sales invoice) row per line, grouped by Reference
+function sageRef(c){return c.sageRef||(c.name||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)}
+function sageRows(list,st){
+  const rows=[["Type","Account Reference","Nominal A/C Ref","Department Code","Date","Reference","Details","Net Amount","Tax Code","Tax Amount","Exchange Rate","Extra Reference","User Name","Project Refn","Cost Code Refn"]];
+  for(const i of list){const c=client(i.clientId)||{};
+    for(const l of i.lines){const amt=r2((Number(l.qty)||0)*(Number(l.unit)||0));
+      rows.push(["SI",sageRef(c),st.sageNominal,"",fmtUK(i.date),i.number,String(l.desc||"").slice(0,60),amt.toFixed(2),i.vat?st.sageTaxCode:st.sageNoVatCode,i.vat?r2(amt*0.2).toFixed(2):"0.00","",i.reference||"","","",""])}}
   return rows;
 }
 
