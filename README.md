@@ -1,5 +1,10 @@
 # Air Ledger (GitHub Pages + Supabase)
 
+> **Rebuild in progress.** The live app is still the files at the top of this repo, served at app.airledger.co.uk.
+> The new app is being built alongside it in `apps/web` and `packages/`, with its database changes in
+> `supabase/migrations`, and runs on the beta test copy. See `specs/REBUILD-PLAN.md`.
+> Developers: `npm ci`, then `npm run check` (format, lint, typecheck, tests, build) and `npm run dev -w @airledger/web`.
+
 The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run on GitHub Pages with Supabase for data and photos.
 
 ## Files

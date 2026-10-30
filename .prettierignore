@@ -1,0 +1,14 @@
+# The live app is formatted by hand; leave it alone until cut-over.
+index.html
+*.js
+!apps/**/*.js
+!packages/**/*.js
+*.sql
+*.md
+supabase/functions
+node_modules
+dist
+coverage
+package-lock.json
+manifest.json
+CNAME
