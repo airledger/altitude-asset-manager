@@ -3,55 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Altitude Climate — Asset Manager</title>
+<title>Air Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Asset Manager">
-<meta name="theme-color" content="#0a6fb8">
+<meta name="apple-mobile-web-app-title" content="Air Ledger">
+<meta name="theme-color" content="#0F2238">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <style>
 :root{
-  --bg:#f3f6f9;--card:#fff;--ink:#0f1e2e;--muted:#5b6b7c;--line:#dfe6ee;
-  --brand:#0a6fb8;--brand-d:#08578f;--brand-l:#e6f1fa;--accent:#13a89e;
-  --red:#c8372d;--red-l:#fdecea;--amber:#b86e00;--amber-l:#fff4e0;--green:#1d7f4e;--green-l:#e5f5ec;
-  --r:12px;--sh:0 1px 2px rgba(15,30,46,.06),0 2px 8px rgba(15,30,46,.05);
+  /* Air Ledger brand: Ledger Navy, Airflow, Airflow Ink, Brass (money only), Slate, Frost, Mist */
+  --navy:#0F2238;--navy-2:#1B3A5C;--air:#3FC1D9;--brass:#B57F1E;--brass-l:#FFF6E6;
+  --bg:#F4F7FA;--card:#fff;--ink:#0F2238;--muted:#5B6C7F;--line:#E1E8EF;
+  --brand:#1597B0;--brand-d:#10788C;--brand-l:#E8F5F8;--accent:#3FC1D9;
+  --red:#C8402F;--red-l:#FBEAE7;--amber:#9A5F00;--amber-l:#FFF1DA;--green:#1E8A5A;--green-l:#E3F3EA;
+  --f-body:"DM Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;--f-display:Sora,"DM Sans",system-ui,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:12px;--sh:0 1px 2px rgba(15,34,56,.06),0 2px 8px rgba(15,34,56,.05);
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);-webkit-text-size-adjust:100%}
 a{color:var(--brand);text-decoration:none}
-header.top{background:linear-gradient(120deg,#0a3d66,#0a6fb8 60%,#13a89e);color:#fff;padding:14px 16px 0;position:sticky;top:0;z-index:20}
+header.top{background:var(--navy);color:#fff;padding:14px 16px 0;position:sticky;top:0;z-index:20}
 .brandrow{display:flex;align-items:center;gap:10px;max-width:1100px;margin:0 auto}
 .brandrow svg{flex:none}
-.brandrow h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px}
-.brandrow small{display:block;font-weight:500;opacity:.8;font-size:12px}
+.brandrow .logo{display:block;height:30px;width:auto}
 .brandrow .sp{flex:1}
-.scanbtn{background:#fff;color:var(--brand-d);border:0;border-radius:999px;padding:9px 14px;font:600 14px Inter,sans-serif;display:flex;gap:6px;align-items:center;cursor:pointer}
+.scanbtn{background:var(--air);color:var(--navy);border:0;border-radius:999px;padding:9px 14px;font:600 14px var(--f-body);display:flex;gap:6px;align-items:center;cursor:pointer}
 nav.tabs{display:flex;gap:2px;overflow-x:auto;max-width:1100px;margin:10px auto 0;scrollbar-width:none}
 nav.tabs::-webkit-scrollbar{display:none}
-nav.tabs a{color:#fff;opacity:.78;padding:9px 12px 11px;white-space:nowrap;font-weight:500;font-size:14px;border-bottom:3px solid transparent}
-nav.tabs a.on{opacity:1;border-bottom-color:#fff;font-weight:600}
+nav.tabs a{color:#fff;opacity:.72;padding:9px 12px 11px;white-space:nowrap;font-weight:500;font-size:14px;border-bottom:3px solid transparent}
+nav.tabs a.on{opacity:1;border-bottom-color:var(--air);font-weight:600}
 main{max-width:1100px;margin:0 auto;padding:16px 14px 90px}
-.banner{background:var(--amber-l);color:#6b4100;border:1px solid #f2d39b;padding:10px 12px;border-radius:10px;margin-bottom:14px;font-size:13.5px}
+.banner{background:var(--amber-l);color:#6b4100;border:1px solid #F2D7A6;padding:10px 12px;border-radius:10px;margin-bottom:14px;font-size:13.5px}
 .card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin-bottom:14px}
-.card h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2{font-family:var(--f-display);font-weight:600;letter-spacing:-.01em;font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .card h2 .sp{flex:1}
-h1.pg{font-size:21px;margin:4px 0 4px}
+h1.pg{font-family:var(--f-display);font-weight:600;letter-spacing:-.02em;font-size:21px;margin:4px 0 4px}
 .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:12px 14px;cursor:pointer}
-.kpi b{display:block;font-size:24px;font-weight:700}
+.kpi b{display:block;font:700 24px var(--f-display);font-variant-numeric:tabular-nums}
 .kpi span{color:var(--muted);font-size:12.5px}
 .kpi.red b{color:var(--red)}.kpi.amber b{color:var(--amber)}.kpi.green b{color:var(--green)}
-.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:8px 12px;font:500 14px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:8px 12px;font:500 14px var(--f-body);cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:#b9c6d4}
-.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn.pri:hover{background:var(--brand-d)}
+.btn.pri{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.pri:hover{background:var(--navy-2);border-color:var(--navy-2)}
 .btn.danger{color:var(--red);border-color:#f0c4c0}
 .btn.sm{padding:5px 9px;font-size:13px;border-radius:8px}
 .btn:disabled{opacity:.5;cursor:default}
@@ -76,27 +79,27 @@ table.t td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:to
 table.t td.n,table.t th.n{text-align:right}
 .tw{overflow-x:auto}
 .empty{color:var(--muted);text-align:center;padding:22px 8px;font-size:14px}
-.search{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:15px Inter,sans-serif;margin-bottom:12px;background:#fff}
+.search{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:15px var(--f-body);margin-bottom:12px;background:#fff}
 .seg{display:inline-flex;background:#e8eef4;border-radius:9px;padding:3px;margin-bottom:12px}
-.seg button{border:0;background:none;padding:6px 12px;border-radius:7px;font:500 13.5px Inter,sans-serif;color:var(--muted);cursor:pointer}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:7px;font:500 13.5px var(--f-body);color:var(--muted);cursor:pointer}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
-.uid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;letter-spacing:.3px}
+.uid{font-family:var(--f-mono);font-weight:700;letter-spacing:.04em;color:var(--brand)}
 .hero{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
 .hero .qr{width:140px;height:140px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;flex:none}
 .hero .qr svg{width:100%;height:100%}
-.fgas{background:#f1f8fd;border:1px solid #cfe3f3;border-radius:10px;padding:10px 12px;font-size:13.5px}
+.fgas{background:var(--brand-l);border:1px solid #CDE9EF;border-radius:10px;padding:10px 12px;font-size:13.5px}
 /* modal */
-.ov{position:fixed;inset:0;background:rgba(10,25,40,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.ov{position:fixed;inset:0;background:rgba(15,34,56,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
 @media(min-width:700px){.ov{align-items:center}}
 .md{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 16px 20px}
 @media(min-width:700px){.md{border-radius:16px}}
-.md h3{margin:0 0 12px;font-size:18px;display:flex;align-items:center}
+.md h3{margin:0 0 12px;font:600 18px var(--f-display);letter-spacing:-.01em;display:flex;align-items:center}
 .md h3 .x{margin-left:auto;border:0;background:#eef1f4;border-radius:999px;width:32px;height:32px;font-size:18px;cursor:pointer}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
 .fg .full{grid-column:1/-1}
 @media(max-width:520px){.fg{grid-template-columns:1fr}}
 .f label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px;font-weight:500}
-.f input[type=text],.f input[type=number],.f input[type=date],.f input[type=time],.f input[type=email],.f input[type=tel],.f select,.f textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:15px Inter,sans-serif;background:#fff;color:var(--ink)}
+.f input[type=text],.f input[type=number],.f input[type=date],.f input[type=time],.f input[type=email],.f input[type=tel],.f select,.f textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:15px var(--f-body);background:#fff;color:var(--ink)}
 .f textarea{min-height:70px;resize:vertical}
 .f.cb label{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);margin-top:20px}
 .f .hint{font-size:12px;color:var(--muted);margin-top:3px}
@@ -104,14 +107,14 @@ table.t td.n,table.t th.n{text-align:right}
 .sec{font-weight:600;font-size:14px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
 .chk{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
 .chk label{display:flex;gap:6px;align-items:center}
-#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f1e2e;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:80;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 #toast.on{opacity:1}#toast.err{background:var(--red)}
 .loading{text-align:center;color:var(--muted);padding:60px 0}
 .note{font-size:13px;color:var(--muted)}
-.lines input{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:7px;font:14px Inter,sans-serif}
+.lines input{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:7px;font:14px var(--f-body)}
 .lines td{padding:4px 3px}
 .tot{margin-top:10px;text-align:right;font-size:14px}
-.tot b{font-size:17px}
+.tot b{font:700 17px var(--f-display);color:var(--brass);font-variant-numeric:tabular-nums}
 .rep{border-top:1px solid var(--line);padding:11px 0}.rep:first-child{border-top:0}
 .rh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rh .sp{flex:1}
 .rt{white-space:pre-line;margin-top:6px;font-size:14px}
@@ -120,14 +123,13 @@ table.t td.n,table.t th.n{text-align:right}
 .thumbs .tw2{position:relative}.thumbs .tw2 button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:999px;border:0;background:var(--red);color:#fff;cursor:pointer;font-size:14px;line-height:1}
 .ph{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
 .newsticker{border:2px dashed var(--brand);background:var(--brand-l)}
-pre.copy{white-space:pre-wrap;background:#f6f8fa;border:1px solid var(--line);border-radius:9px;padding:10px;font:13.5px/1.45 Inter,sans-serif;margin:0}
+pre.copy{white-space:pre-wrap;background:#f6f8fa;border:1px solid var(--line);border-radius:9px;padding:10px;font:13.5px/1.45 var(--f-body);margin:0}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="brandrow">
-    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="rgba(255,255,255,.16)"/><path d="M5 25 L13 12 L18 19 L21 15 L29 25 Z" fill="#fff"/><g stroke="#bfefff" stroke-width="1.6" stroke-linecap="round"><path d="M24 5v8M20.5 7l7 4M27.5 7l-7 4"/></g></svg>
-    <div><h1>Altitude Climate</h1><small>Asset Manager</small></div>
+    <img class="logo" src="logo-reverse.svg" alt="Air Ledger" width="132" height="30">
     <div class="sp"></div>
     <button class="scanbtn" id="scanBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan</button>
   </div>
@@ -391,7 +393,7 @@ function loginScreen(msg){
   $("#nav").innerHTML="";
   $("#app").innerHTML=`<div class="card" style="max-width:420px;margin:40px auto"><h2>Sign in</h2>${msg?`<p class="note" style="color:var(--red)">${esc(msg)}</p>`:""}
   <form id="login" class="fg" style="grid-template-columns:1fr"><div class="f"><label>Email</label><input type="email" id="lEmail" autocomplete="username" required></div>
-  <div class="f"><label>Password</label><input type="password" id="lPass" autocomplete="current-password" required style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:15px Inter,sans-serif"></div>
+  <div class="f"><label>Password</label><input type="password" id="lPass" autocomplete="current-password" required style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:15px var(--f-body)"></div>
   <div class="actions"><button class="btn pri" type="submit">Sign in</button></div></form></div>`;
   $("#login").onsubmit=async e=>{e.preventDefault();
     const {error}=await sb.auth.signInWithPassword({email:$("#lEmail").value.trim(),password:$("#lPass").value});
@@ -697,7 +699,7 @@ function aggregate(jobs){
 }
 function pendingAgg(){const end=addDays(todayISO(),ui.orderDays);return aggregate(S.jobs.filter(j=>j.status==="booked"&&j.date<=end&&!j.materialsOrdered))}
 function copyOrder(){const a=pendingAgg();const by={};for(const m of a)(by[m.supplier]=by[m.supplier]||[]).push(m);copyText(Object.entries(by).map(([s,items])=>s+"\n"+items.map(m=>`${m.qty} x ${m.name}${m.sku?" ("+m.sku+")":""}`).join("\n")).join("\n\n"))}
-function downloadOrder(){const a=pendingAgg();saveFile("altitude-climate-order-"+todayISO()+".csv",toCSV([["Supplier","Item","Code","Qty","Unit cost","Line cost"],...a.map(m=>[m.supplier,m.name,m.sku,m.qty,m.cost.toFixed(2),(m.qty*m.cost).toFixed(2)])]))}
+function downloadOrder(){const a=pendingAgg();saveFile("airledger-order-"+todayISO()+".csv",toCSV([["Supplier","Item","Code","Qty","Unit cost","Line cost"],...a.map(m=>[m.supplier,m.name,m.sku,m.qty,m.cost.toFixed(2),(m.qty*m.cost).toFixed(2)])]))}
 async function markAllOrdered(){const end=addDays(todayISO(),ui.orderDays);for(const j of S.jobs.filter(j=>j.status==="booked"&&j.date<=end&&!j.materialsOrdered)){const d=clone(j);d.materialsOrdered=true;d.materialsSnapshot=materialsFor(j);await put("jobs",j.id,d)}toast("Marked as ordered")}
 async function toggleOrdered(id){const j=clone(job(id));j.materialsOrdered=!j.materialsOrdered;j.materialsSnapshot=j.materialsOrdered?materialsFor(j):null;if(await put("jobs",id,j))toast(j.materialsOrdered?"Parts marked as ordered":"Parts marked as not ordered")}
 
@@ -877,7 +879,7 @@ function editUnit(id,systemId,role,presetId){
   const u=id?clone(unit(id)):{systemId,role:role||"indoor",indoorType:"Wall mounted",filterType:"Washable",controller:"Wireless remote"};
   const sid=u.systemId; const prev=unitsOf(sid).slice(-1)[0];
   if(!id&&prev&&!u.manufacturer)u.manufacturer=prev.manufacturer||"";
-  openModal(id?"Edit unit "+id:presetId?"Register sticker "+presetId:"Add unit",(presetId?`<div class="banner" style="background:var(--brand-l);border-color:#bcd8ee;color:var(--brand-d)">Adding to <b>${esc((client(sys0?.clientId)||{}).name||"")} · ${esc(sys0?.name||"")}</b></div>`:"")+formHTML(UNIT_FIELDS,u)+`<div class="actions">${id?`<button class="btn danger" id="dl" style="margin-right:auto">Delete</button>`:""}<button class="btn" onclick="closeModal()">Cancel</button>${id?"":`<button class="btn" id="sv2">Save & add another</button>`}<button class="btn pri" id="sv">Save</button></div>`,md=>{
+  openModal(id?"Edit unit "+id:presetId?"Register sticker "+presetId:"Add unit",(presetId?`<div class="banner" style="background:var(--brand-l);border-color:#CDE9EF;color:var(--brand-d)">Adding to <b>${esc((client(sys0?.clientId)||{}).name||"")} · ${esc(sys0?.name||"")}</b></div>`:"")+formHTML(UNIT_FIELDS,u)+`<div class="actions">${id?`<button class="btn danger" id="dl" style="margin-right:auto">Delete</button>`:""}<button class="btn" onclick="closeModal()">Cancel</button>${id?"":`<button class="btn" id="sv2">Save & add another</button>`}<button class="btn pri" id="sv">Save</button></div>`,md=>{
     const roleSel=$("#f_role",md);const sync=()=>{const ind=roleSel.value==="indoor";["indoorType","filterType","controller"].forEach(k=>{$("#f_"+k,md).closest(".f").style.display=ind?"":"none"})};roleSel.onchange=sync;sync();
     const go=async(again)=>{const v=readForm(md,UNIT_FIELDS);if(v.role==="outdoor"){v.indoorType="";v.filterType="";v.controller=""}const nid=id||presetId||unitId();const body=Object.assign(u,v,{updatedAt:todayISO()});if(!id){body.createdAt=todayISO();body.sticker=!!presetId}
       if(await put("units",nid,body)){toast((id?"Saved ":"Added ")+nid);closeModal();if(again)setTimeout(()=>presetId?stickerPrompt(sid):editUnit(null,sid,"indoor"),150);else if(presetId)location.hash="u-"+nid}};
@@ -1295,7 +1297,7 @@ function icsFold(line){const out=[];while(line.length>73){out.push(line.slice(0,
 function icsDT(date,time){return date.replace(/-/g,"")+"T"+(time||"09:00").replace(":","")+"00"}
 function buildICS(jobs){
   const st=set(); const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
-  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Altitude Climate//Asset Manager//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:Altitude Climate jobs",
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Air Ledger//Asset Manager//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:Air Ledger jobs",
   "BEGIN:VTIMEZONE","TZID:Europe/London","BEGIN:DAYLIGHT","TZOFFSETFROM:+0000","TZOFFSETTO:+0100","TZNAME:BST","DTSTART:19700329T010000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:+0100","TZOFFSETTO:+0000","TZNAME:GMT","DTSTART:19701025T020000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
   for(const j of jobs){
     const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id); const mats=jobMaterials(j);
@@ -1332,7 +1334,7 @@ function zipFiles(files){
 async function exportCalendar(ids){
   const jobs=ids?ids.map(job).filter(Boolean):S.jobs.filter(j=>j.status==="booked"&&j.date>=todayISO()).sort(byDateAsc);
   if(!jobs.length){toast("No upcoming bookings to export");return}
-  const name=jobs.length===1?("job-"+jobs[0].date):"altitude-climate-bookings";
+  const name=jobs.length===1?("job-"+jobs[0].date):"airledger-bookings";
   const ok=await saveFile(name+".zip",zipFiles([{name:name+".ics",data:buildICS(jobs)}]));
   if(ok) openModal("Add to iCloud Calendar",`<p>The calendar file is saved as a zip.</p><ol style="padding-left:20px;line-height:1.6"><li>On your iPhone, open it in <b>Files</b> – tap the zip to unpack it.</li><li>Tap the <b>.ics</b> file, then <b>Add All</b> and choose your iCloud calendar.</li></ol><p class="note">On a Mac, double-click the .ics to add it to Calendar. Re-exporting the same job updates it rather than duplicating it.</p><div class="actions"><button class="btn pri" onclick="closeModal()">Done</button></div>`);
 }
@@ -1344,7 +1346,7 @@ async function exportFgas(){
     rows.push([c.name,s.name,(s.siteAddress||"").replace(/\n/g,", "),s.sitePostcode,s.installDate,s.refrigerant,i.f.gwp,i.f.kg.toFixed(3),i.f.t.toFixed(3),s.hermetic?"Yes":"No",s.leakDetection?"Yes":"No",i.f.months||"Not required",i.lastLeak||"",i.nextLeak||"",done.reduce((t,j)=>t+(j.leakCheck?.addedKg||0),0).toFixed(3),done.reduce((t,j)=>t+(j.leakCheck?.recoveredKg||0),0).toFixed(3),unitsOf(s.id).map(u=>u.id+" "+(u.model||"")+" "+(u.serial||"")).join("; ")])}
   await saveFile("fgas-register-"+todayISO()+".csv",toCSV(rows));
 }
-async function backup(){await saveFile("altitude-climate-backup-"+todayISO()+".json",JSON.stringify({exported:new Date().toISOString(),...S},null,2))}
+async function backup(){await saveFile("airledger-backup-"+todayISO()+".json",JSON.stringify({exported:new Date().toISOString(),...S},null,2))}
 
 /* ================= scanning ================= */
 $("#scanBtn").onclick=()=>openModal("Scan a unit",`<p style="margin-top:0">Take a photo of the QR label and the unit opens.</p>
@@ -1362,7 +1364,7 @@ $("#scanFile").onchange=async e=>{
   try{data=await decodePhoto(f)}catch(err){toast(err.message||"Couldn't read that photo","err");return}
   if(!data){toast("Couldn't find a QR code – try again closer and in focus","err");return}
   const id=parseScan(data);
-  if(!id||!STICKER_RE.test(id)){toast("That QR code isn't an Altitude Climate sticker","err");return}
+  if(!id||!STICKER_RE.test(id)){toast("That QR code isn't an Air Ledger sticker","err");return}
   closeModal();
   if(mode&&mode.add){
     if(unit(id)){const s=system(unit(id).systemId);toast(id+" is already registered"+(s?" to "+s.name:""),"err");return}
