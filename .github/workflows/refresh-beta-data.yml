@@ -5,6 +5,11 @@ name: Refresh beta data
 # Photos and PDFs aren't copied (beta shows placeholders for them).
 on:
   workflow_dispatch:
+    inputs:
+      demo:
+        description: Also add made-up test clients, installs, units and jobs (scripts/beta/demo-data.sql)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -61,6 +66,11 @@ jobs:
           case "$BETA_URL" in *"$PROD_REF"*) echo "::error::Refusing to import into production"; exit 1;; esac
           cd "$RUNNER_TEMP/copy"
           psql "$BETA_URL" -X -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/scripts/beta/import-to-beta.sql"
+      - name: Add made-up test records
+        if: inputs.demo
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
+        run: psql "$BETA_URL" -X -v ON_ERROR_STOP=1 -f scripts/beta/demo-data.sql
       - name: Delete the copied files
         if: always()
         run: rm -rf "$RUNNER_TEMP/copy"
