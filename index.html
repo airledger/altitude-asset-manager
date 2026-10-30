@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="business.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -340,30 +341,30 @@ function sbDb(){
   let t=0; function emit(){clearTimeout(t);t=setTimeout(()=>{for(const s of subs)s()},0)}
   function docRef(path){const [col,id]=split(path);return{id,path,
     async get(){const v=store[path];return{id,exists:!!v,data:()=>v&&clone(v),metadata:{}}},
-    async set(d){const {error}=await sb.from("docs").upsert({col,id,data:d});if(error)throw error;store[path]=clone(d);emit()},
+    async set(d){const {error}=await sb.from("docs").upsert({org_id:Biz.org.id,col,id,data:d});if(error)throw error;store[path]=clone(d);emit()},
     async update(d){if(!store[path])throw{code:"invalid_argument"};return this.set(Object.assign(clone(store[path]),d))},
-    async delete(){const {error}=await sb.from("docs").delete().eq("col",col).eq("id",id);if(error)throw error;delete store[path];emit()},
+    async delete(){const {error}=await sb.from("docs").delete().eq("org_id",Biz.org.id).eq("col",col).eq("id",id);if(error)throw error;delete store[path];emit()},
     onSnapshot(cb){const f=()=>{const v=store[path];cb({id,exists:!!v,data:()=>v&&clone(v),metadata:{}})};subs.push(f);setTimeout(f,0);return()=>{}}}}
   function colRef(path){return{path,doc:(id)=>docRef(path+"/"+(id||rid(20))),
     onSnapshot(cb){const f=()=>{const docs=Object.keys(store).filter(k=>colOf(k)===path).map(k=>({id:k.split("/").pop(),exists:true,data:()=>clone(store[k]),metadata:{}}));cb({docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{}})};subs.push(f);setTimeout(f,0);return()=>{}},
     async get(){return{docs:Object.keys(store).filter(k=>colOf(k)===path).map(k=>({id:k.split("/").pop(),exists:true,data:()=>clone(store[k])}))}}}}
   async function load(){
     for(let from=0;;from+=1000){
-      const {data,error}=await sb.from("docs").select("col,id,data").range(from,from+999);
+      const {data,error}=await sb.from("docs").select("col,id,data").eq("org_id",Biz.org.id).range(from,from+999);
       if(error)throw error;
       for(const r of data)store[r.col+"/"+r.id]=r.data;
       if(data.length<1000)break;
     }
-    sb.channel("docs").on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{
-      if(p.eventType==="DELETE"){const o=p.old||{};if(o.col)delete store[o.col+"/"+o.id]}
-      else{const n=p.new;store[n.col+"/"+n.id]=n.data}
+    sb.channel("docs").on("postgres_changes",{event:"*",schema:"public",table:"docs",filter:"org_id=eq."+Biz.org.id},p=>{
+      if(p.eventType==="DELETE"){const o=p.old||{};if(o.col&&o.org_id===Biz.org.id)delete store[o.col+"/"+o.id]}
+      else{const n=p.new;if(n.org_id!==Biz.org.id)return;store[n.col+"/"+n.id]=n.data}
       emit();
     }).subscribe();
   }
   return{doc:docRef,collection:colRef,load,_store:store};
 }
 const sbAssets={
-  async upload(blob,{type}){const id=rid(20)+"."+(type.split("/")[1]||"jpg");const {error}=await sb.storage.from("photos").upload(id,blob,{contentType:type});if(error)throw error;return{id,url:URL.createObjectURL(blob)}},
+  async upload(blob,{type}){const id=Biz.org.id+"/"+rid(20)+"."+(type.split("/")[1]||"jpg");const {error}=await sb.storage.from("photos").upload(id,blob,{contentType:type});if(error)throw error;return{id,url:URL.createObjectURL(blob)}},
   async delete(id){await sb.storage.from("photos").remove([id])}
 };
 const sbDownloads={
@@ -380,8 +381,8 @@ async function restoreBackup(){
     const f=inp.files&&inp.files[0];if(!f)return;
     let b;try{b=JSON.parse(await f.text())}catch(e){toast("That file isn't a valid backup","err");return}
     const rows=[];
-    for(const c of COLS)for(const d of (b[c]||[])){const body=clone(d);const id=body.id;delete body.id;if(id)rows.push({col:c,id,data:body})}
-    if(b.settings&&Object.keys(b.settings).length){const st=clone(b.settings);if(/claude\.ai/.test(st.appUrl||""))st.appUrl="";rows.push({col:"config",id:"settings",data:st})}
+    for(const c of COLS)for(const d of (b[c]||[])){const body=clone(d);const id=body.id;delete body.id;if(id)rows.push({org_id:Biz.org.id,col:c,id,data:body})}
+    if(b.settings&&Object.keys(b.settings).length){const st=clone(b.settings);if(/claude\.ai/.test(st.appUrl||""))st.appUrl="";rows.push({org_id:Biz.org.id,col:"config",id:"settings",data:st})}
     if(!rows.length){toast("No records found in that file","err");return}
     if(!await confirmBox("Import "+rows.length+" records from this backup? Records with the same ID will be overwritten."))return;
     for(let i=0;i<rows.length;i+=200){const {error}=await sb.from("docs").upsert(rows.slice(i,i+200));if(error){toast("Import failed: "+error.message,"err");return}}
@@ -742,6 +743,8 @@ const SETTINGS_FIELDS=[
   {sec:"Business"},
   {k:"businessName",label:"Trading name"},{k:"tradingAs",label:"Part of"},
   {k:"phone",label:"Phone",type:"tel"},{k:"email",label:"Email",type:"email"},
+  {k:"address",label:"Business address",type:"textarea",full:true},
+  {k:"website",label:"Website"},{k:"companyNo",label:"Company number"},{k:"vatNo",label:"VAT number"},
   {k:"engineer",label:"Default engineer"},{k:"fgasCert",label:"F-gas company cert no."},
   {k:"appUrl",label:"App link (for QR codes)",full:true,hint:"This app's web address. QR labels open it at the scanned unit. Leave blank to use the current address."},
   {sec:"Service reminders"},
@@ -775,11 +778,12 @@ const SETTINGS_FIELDS=[
 ];
 function viewSettings(){
   const st=set();
-  return `<h1 class="pg">Settings</h1><div class="sub">Pricing, reminders and accounts details</div>
+  return `<h1 class="pg">Settings</h1><div class="sub">Company profile, team, pricing, reminders and accounts details</div>
   <div class="card" id="setForm">${formHTML(SETTINGS_FIELDS,st)}<div class="actions"><button class="btn pri" onclick="saveSettingsForm()">Save settings</button></div></div>
+  ${Biz.settingsCards()}
   <div class="card"><h2>Backup & records</h2><div class="row"><button class="btn" onclick="backup()">Download full backup (JSON)</button><button class="btn" onclick="restoreBackup()">Restore from backup</button><button class="btn" onclick="signOut()">Sign out</button><button class="btn" onclick="exportFgas()">F-gas register (CSV)</button></div><p class="note">Keep F-gas records for at least 5 years.</p></div>`;
 }
-async function saveSettingsForm(){const v=readForm($("#setForm"),SETTINGS_FIELDS);if(await saveSettings(v))toast("Settings saved")}
+async function saveSettingsForm(){const v=readForm($("#setForm"),SETTINGS_FIELDS);if(await saveSettings(v)){toast("Settings saved");await Biz.afterSettingsSaved(v)}}
 
 /* ================= forms & modals ================= */
 function formHTML(fields,v){
@@ -1206,7 +1210,7 @@ async function downloadJobReport(id){
   table.u th{width:auto}.ph{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.ph img{width:240px;max-width:48%;border-radius:6px;border:1px solid #ccc}
   .ft{margin-top:28px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:8px}.pre{white-space:pre-line}
   @media print{body{padding:0}}</style></head><body>
-  <div class="hd"><div><div class="b">${esc(st.businessName)}</div><div>${esc(st.phone||"")} ${esc(st.email||"")}</div>${st.fgasCert?`<div>F-gas company certificate: ${esc(st.fgasCert)}</div>`:""}</div><div style="text-align:right"><h1>${esc(title)}</h1><div>${fmtDate(j.date)}</div></div></div>
+  <div class="hd"><div>${Biz.logoImg()}<div class="b">${esc(st.businessName)}</div>${st.address?`<div>${esc(st.address).replace(/\n/g,", ")}</div>`:""}<div>${esc(st.phone||"")} ${esc(st.email||"")}</div>${st.fgasCert?`<div>F-gas company certificate: ${esc(st.fgasCert)}</div>`:""}</div><div style="text-align:right"><h1>${esc(title)}</h1><div>${fmtDate(j.date)}</div></div></div>
   <h2>Client & site</h2><table>${row("Client",esc(c.name))}${row("Site",esc((s.siteAddress||"").replace(/\n/g,", "))+(s.sitePostcode?", "+esc(s.sitePostcode):""))}${row("System",esc(s.name))}${row("Engineer",esc(j.engineer))}${row("Job type",esc(j.type))}</table>
   <h2>Equipment</h2><table class="u"><tr><th>Asset ID</th><th>Type</th><th>Make / model</th><th>Serial</th><th>Location</th></tr>${us.map(u=>`<tr><td>${esc(u.id)}</td><td>${esc(unitLabel(u))}</td><td>${esc(u.manufacturer||"")} ${esc(u.model||"")}</td><td>${esc(u.serial||"")}</td><td>${esc(u.location||"")}</td></tr>`).join("")}</table>
   <h2>Refrigerant (F-gas)</h2><table>${row("Refrigerant",esc(s.refrigerant)+" (GWP "+info.f.gwp+")")}${row("Total charge",num(info.f.kg,3)+" kg")}${row("CO₂ equivalent",num(info.f.t,2)+" tonnes")}${row("Leak checks",info.f.required?"Required every "+info.f.months+" months":"Not mandatory (below threshold)")}</table>
@@ -1216,7 +1220,7 @@ async function downloadJobReport(id){
   ${j.completionNotes?`<h2>Summary</h2><div class="pre">${esc(j.completionNotes)}</div>`:""}
   ${reps.length?`<h2>Engineer reports</h2>${reps.map(r=>`<p><b>${esc(r.kind)}</b> – ${fmtDate(r.date)}${r.author?" – "+esc(r.author):""}${r.unitId?" – "+esc(r.unitId):""}</p>${r.text?`<div class="pre">${esc(r.text)}</div>`:""}${(r.photos||[]).length?`<div class="ph">${r.photos.map(p=>imgs[p]?`<img src="${imgs[p]}">`:"").join("")}</div>`:""}`).join("")}`:""}
   ${!inst?`<h2>Next service</h2><p>Due ${fmtDate(addMonths(j.date,info.interval))}</p>`:`<h2>First service</h2><p>Due ${fmtDate(addMonths(j.date,info.interval))}. Annual servicing keeps the manufacturer's warranty valid.</p>`}
-  <div class="ft">${esc(st.businessName)}${st.tradingAs?" – part of "+esc(st.tradingAs):""}. Record generated ${fmtDate(todayISO())}.</div></body></html>`;
+  <div class="ft">${esc(st.businessName)}${st.tradingAs?" – part of "+esc(st.tradingAs):""}.${st.companyNo?" Company no. "+esc(st.companyNo)+".":""}${st.vatNo?" VAT no. "+esc(st.vatNo)+".":""} Record generated ${fmtDate(todayISO())}.</div></body></html>`;
   await saveFile((inst?"commissioning-record-":"service-report-")+(c.name||"client").replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-"+j.date+".html",html);
 }
 
@@ -1400,7 +1404,8 @@ $("#scanFile").onchange=async e=>{
   if(cfg.supabaseUrl&&cfg.supabaseAnonKey&&window.supabase){
     sb=supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true}});
     const {data:{session}}=await sb.auth.getSession();
-    if(!session){loginScreen();return}
+    if(!session){if(!await Biz.signedOut())loginScreen();return}
+    try{if(!await Biz.resolveOrg())return}catch(e){loginScreen("Couldn't load your business: "+(e.message||e));return}
     realDb=sbDb();
     try{await realDb.load()}catch(e){loginScreen("Couldn't load your data: "+(e.message||e));return}
     assets=sbAssets;
