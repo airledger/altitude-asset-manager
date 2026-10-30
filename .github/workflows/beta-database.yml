@@ -14,8 +14,8 @@ permissions:
 concurrency: beta-database
 
 env:
-  # Beta project ref (public, like the production one in config.js). Set once the beta project exists.
-  SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_BETA_PROJECT_REF }}
+  # Beta project ref (public, like the production one in config.js): https://besbuksxoyxkvaynzvax.supabase.co
+  SUPABASE_PROJECT_REF: besbuksxoyxkvaynzvax
 
 jobs:
   push:
@@ -27,8 +27,8 @@ jobs:
           TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
         run: |
-          if [ -z "$SUPABASE_PROJECT_REF" ] || [ -z "$TOKEN" ] || [ -z "$PASSWORD" ]; then
-            echo "Beta isn't connected yet (missing project ref, access token or password). Skipping."
+          if [ -z "$TOKEN" ] || [ -z "$PASSWORD" ]; then
+            echo "Beta isn't connected yet (missing SUPABASE_ACCESS_TOKEN or SUPABASE_BETA_DB_PASSWORD secret). Skipping."
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
