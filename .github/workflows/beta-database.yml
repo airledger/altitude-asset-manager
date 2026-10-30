@@ -14,7 +14,7 @@ permissions:
 concurrency: beta-database
 
 env:
-  # Beta project ref (public, like the production one in config.js): https://besbuksxoyxkvaynzvax.supabase.co
+  # Beta project ref (public, like the production one in config.js); also in apps/web/.env.beta.
   SUPABASE_PROJECT_REF: besbuksxoyxkvaynzvax
 
 jobs:

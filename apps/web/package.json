@@ -7,7 +7,8 @@
     "build": "tsc -p . && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:beta": "tsc -p . && vite build --mode beta"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

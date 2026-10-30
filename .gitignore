@@ -4,5 +4,6 @@ coverage/
 .env
 .env.*
 !.env.example
+!apps/web/.env.beta
 supabase/.temp/
 supabase/.branches/
