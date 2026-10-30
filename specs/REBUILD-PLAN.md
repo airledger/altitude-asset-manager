@@ -21,7 +21,7 @@ The rebuild keeps everything you and your engineers see and do, and the same Sup
 
 **How long:** roughly 14 to 18 weeks of build work done in stages, with the current app staying live and in use the whole time. You switch over once the new one matches the old one feature for feature and your data has been copied across and checked.
 
-**What it costs to run:** Supabase Pro (about $25 a month) for daily backups and a staging copy; everything else stays on free or low tiers until you have more customers.
+**What it costs to run:** the rebuild can be done on Supabase's free plan. The live app and the beta copy use the free plan's two projects. Supabase Pro (about $25 a month) is recommended, not required. Its value is daily backups of the live data, and it becomes worth it before cut-over or when other businesses join, whichever comes first.
 
 **You can test it as it's built** (Lewis's condition, agreed 30 Oct 2026). From the first stage there is a separate test address, `beta.airledger.co.uk`, running the new app against its own test database filled with a copy of your real records. You use it on your phone alongside the live app, and nothing you do there touches live data. Every change also gets its own preview link before it goes in, so you can try it first.
 
@@ -162,12 +162,17 @@ Lewis has agreed to the rebuild on condition that he can test it throughout. Thi
 | Offline sync conflicts | Per-field patches, server timestamps, visible conflict messages; Playwright tests with network off. |
 | Migration loses or mangles data | Idempotent script, counts and checksums, dry runs, untouched old table, rollback by DNS. |
 | App store review delays | Submit the old-app build from PR #7 now if needed; the new build replaces it later under the same app ID. |
-| Cost creep | Supabase Pro is the only new fixed cost; others on free tiers until there are paying customers. |
+| Cost creep | Build runs on free tiers; Supabase Pro is the only new fixed cost and is deferred until cut-over or the first other business. |
+| Free plan: beta pauses, no backups | Resume beta from the dashboard; weekly JSON backups and a database dump before each migration until Pro. |
 
 ## Decisions for Lewis
 1. ~~Rebuild in stages with the old app live~~ **Decided 30 Oct 2026:** go ahead, staged, with Lewis testing on beta throughout.
-2. **Freeze new features on the old app** during the rebuild, apart from bug fixes. Recommended.
-3. **Upgrade Supabase to Pro** (about $25/month) for daily backups and a staging project. Recommended before more businesses join.
+2. ~~Freeze new features on the old app~~ **Decided 30 Oct 2026:** new features paused during the rebuild, apart from bug fixes. Google/Outlook calendar and Sage (already in progress) finish on the old app and are in the specs for the new one.
+3. **Supabase Pro is not needed for the rebuild** (Lewis asked 30 Oct 2026). The plan runs on the free plan, with these limits handled:
+   - *Two projects*: production plus staging/beta uses both. Preview links all share the beta database rather than getting their own.
+   - *Pausing*: a free project pauses after about a week without use. Beta may pause between stages; it's resumed from the Supabase dashboard in a minute, with no data lost. Production stays active because it's used daily.
+   - *No backups*: the free plan has no restorable backups. Until Pro, Lewis downloads Settings → Download full backup (JSON) weekly, and a full database dump is taken before every migration and at cut-over and kept privately (never in this public repo).
+   - **Upgrade to Pro before cut-over or before other businesses join, whichever is first.** Cut-over rewrites the live data, and paying customers need daily backups.
 4. **PR #4 (landing page)**: merge now; it's self-contained and will be ported. **PR #7 (apps)**: merge now if you want to start store submission; otherwise wait for stage 8.
 5. **Hosting**: move to Cloudflare Pages for preview links on every change (recommended), or stay on GitHub Pages.
 6. **Engineers deleting records**: rebuild makes deleting clients, systems and jobs owner-only. Confirm that's what you want.
