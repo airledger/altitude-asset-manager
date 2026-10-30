@@ -124,6 +124,8 @@ Each stage ends with something Lewis can try on a staging link, and a pull reque
 | 8 | **Mobile apps** | Port PR #7 to the new app: Capacitor, native scan, notifications, share, privacy and support pages, account deletion. | 1–2 days | Install on your phone; Apple/Google review adds its own wait |
 | 9 | **Migration and cut-over** | Migration script from `docs` to typed tables, dry runs on staging, parallel running for a week, switch, keep the old data read-only. | 2 days | One week using both apps side by side, then sign-off |
 
+**Backup reminder at the end of every stage.** Lewis is staying on the free plan for now, which keeps no backups. When each stage is done, and whenever the live database changes, Claude reminds Lewis in the thread to download a backup from the live app (Settings → Download full backup (JSON)) and keep it somewhere safe off the phone, such as Google Drive. Lewis also gets a weekly reminder every Monday morning until he upgrades to Pro.
+
 Total: about 4–6 weeks. Claude's building adds up to roughly 3 weeks of working days, and much of it overlaps with Lewis testing the stage before. Stages 3 and 4 run alongside stage 2, and stage 8 alongside stages 6 and 7.
 
 What can't be sped up:
