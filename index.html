@@ -10,6 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="landing.js"></script>
+<link rel="stylesheet" href="landing.css">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -389,16 +391,7 @@ async function restoreBackup(){
   inp.click();
 }
 async function signOut(){await sb.auth.signOut();location.reload()}
-function loginScreen(msg){
-  $("#nav").innerHTML="";
-  $("#app").innerHTML=`<div class="card" style="max-width:420px;margin:40px auto"><h2>Sign in</h2>${msg?`<p class="note" style="color:var(--red)">${esc(msg)}</p>`:""}
-  <form id="login" class="fg" style="grid-template-columns:1fr"><div class="f"><label>Email</label><input type="email" id="lEmail" autocomplete="username" required></div>
-  <div class="f"><label>Password</label><input type="password" id="lPass" autocomplete="current-password" required style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font:15px var(--f-body)"></div>
-  <div class="actions"><button class="btn pri" type="submit">Sign in</button></div></form></div>`;
-  $("#login").onsubmit=async e=>{e.preventDefault();
-    const {error}=await sb.auth.signInWithPassword({email:$("#lEmail").value.trim(),password:$("#lPass").value});
-    if(error)loginScreen(error.message);else location.reload()};
-}
+function loginScreen(msg){AirLedgerLanding.render(msg)}
 async function put(col,id,data){
   const body=clone(data); delete body.id;
   try{await db.collection(col).doc(id).set(body);return true}
