@@ -1,12 +1,12 @@
-# Altitude Climate Asset Manager (GitHub Pages + Supabase)
+# Air Ledger (GitHub Pages + Supabase)
 
-The Asset Manager app, adapted to run on GitHub Pages with Supabase for data and photos.
+The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run on GitHub Pages with Supabase for data and photos.
 
 ## Files
 - `index.html`: the app
 - `config.js`: your Supabase project URL and anon key
 - `supabase-setup.sql`: run once in Supabase to create the table, sync and photo bucket
-- `manifest.json`, `icon-*.png`: "Add to Home Screen" support
+- `manifest.json`, `icon-*.png`, `favicon-32.png`, `logo-reverse.svg`: Air Ledger branding and "Add to Home Screen" support
 
 ## Supabase setup (once)
 1. Create a project at supabase.com (region: London).
