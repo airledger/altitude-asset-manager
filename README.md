@@ -10,6 +10,7 @@ The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run
 - `business.js`: sign-up, business set-up, company profile, team invites and account deletion
 - `service-report.js`: signed PDF service reports (engineer and customer sign on screen; sent to the client and the office)
 - `billing.js`: the owner-only price list, and draft invoices built automatically from completed jobs
+- `calendar.js`: "Add to calendar" for iPhone/iCloud, Google Calendar and Outlook
 - `supabase-pricing.sql`: run once after `supabase-multi-business.sql` so only owners can see prices and invoices
 - `manifest.json`, `icon-*.png`, `favicon-32.png`, `logo-reverse.svg`: Air Ledger branding and "Add to Home Screen" support
 

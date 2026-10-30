@@ -13,6 +13,7 @@
 <script src="business.js"></script>
 <script src="service-report.js"></script>
 <script src="billing.js"></script>
+<script src="calendar.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -484,7 +485,7 @@ function viewDashboard(){
     <button class="btn pri" onclick="editClient()">+ New client</button>
     <button class="btn" onclick="editSystem(null,{})">+ New install</button>
     <button class="btn" onclick="bookJob()">+ Book a job</button>
-    <button class="btn" onclick="exportCalendar()">📅 Export bookings to iCloud</button>
+    <button class="btn" onclick="exportCalendar()">📅 Export bookings to calendar</button>
     <button class="btn" onclick="blankStickers()">🏷 Blank asset stickers</button>
   </div>
   ${pastBooked.length?`<div class="card"><h2>Jobs still open from earlier dates <span class="pill red">${pastBooked.length}</span></h2><div class="list">${pastBooked.map(jobItem).join("")}</div></div>`:""}
@@ -643,7 +644,7 @@ function viewJobs(){
   const v=ui.jobView;
   const list=S.jobs.filter(j=>v==="all"||j.status===v).sort(v==="booked"?byDateAsc:byDateDesc);
   return `<h1 class="pg">Jobs</h1><div class="sub">Bookings, services and repairs</div>
-  <div class="row" style="margin-bottom:12px"><button class="btn pri" onclick="bookJob()">+ Book a job</button><button class="btn" onclick="exportCalendar()">📅 Export bookings to iCloud</button></div>
+  <div class="row" style="margin-bottom:12px"><button class="btn pri" onclick="bookJob()">+ Book a job</button><button class="btn" onclick="exportCalendar()">📅 Export bookings to calendar</button></div>
   <div class="seg">${[["booked","Booked"],["completed","Completed"],["cancelled","Cancelled"],["all","All"]].map(([k,l])=>`<button class="${v===k?"on":""}" onclick="ui.jobView='${k}';render()">${l}</button>`).join("")}</div>
   <div class="card"><div class="list">${list.length?list.map(jobItem).join(""):'<div class="empty">Nothing here.</div>'}</div></div>`;
 }
@@ -658,7 +659,7 @@ function viewJob(id){
   <div class="sub">${fmtDate(j.date)}${j.time?" at "+esc(j.time):""} · <a href="#c-${c.id}">${esc(c.name||"—")}</a> · <a href="#s-${s.id}">${esc(s.name||"")}</a></div>
   <div class="row" style="margin-bottom:14px">
     ${j.status==="booked"&&isInstall(j)?`<button class="btn" onclick="stickerPrompt('${s.id}')">📷 Scan sticker – add unit</button>`:""}
-    ${j.status==="booked"?`<button class="btn pri" onclick="completeJob('${id}')">Complete job</button><button class="btn" onclick="exportCalendar(['${id}'])">📅 Add to iCloud</button><button class="btn" onclick="bookJob(null,'${id}')">Reschedule / edit</button><button class="btn" onclick="toggleOrdered('${id}')">${j.materialsOrdered?"Mark parts not ordered":"Mark parts ordered"}</button><button class="btn danger" onclick="cancelJob('${id}')">Cancel</button>`:""}
+    ${j.status==="booked"?`<button class="btn pri" onclick="completeJob('${id}')">Complete job</button><button class="btn" onclick="exportCalendar(['${id}'])">📅 Add to calendar</button><button class="btn" onclick="bookJob(null,'${id}')">Reschedule / edit</button><button class="btn" onclick="toggleOrdered('${id}')">${j.materialsOrdered?"Mark parts not ordered":"Mark parts ordered"}</button><button class="btn danger" onclick="cancelJob('${id}')">Cancel</button>`:""}
     ${j.status==="completed"?(!Biz.isOwner?"":inv?`<a class="btn" href="#i-${inv.id}">Invoice ${esc(inv.number)}</a>`:j.billing==="plan"?`<span class="pill green">Covered by service plan</span><button class="btn" onclick="createInvoice('${id}')">Invoice anyway</button>`:`<button class="btn pri" onclick="createInvoice('${id}')">Create invoice</button>`)+`<button class="btn" onclick="ServiceReport.open('${id}')">📄 Service report</button><button class="btn" onclick="completeJob('${id}')">Edit ${isInstall(j)?"commissioning":"service"} record</button>`:""}
     ${j.status==="cancelled"?`<button class="btn" onclick="reopenJob('${id}')">Re-open</button><button class="btn danger" onclick="deleteJob('${id}')">Delete</button>`:""}
   </div>
@@ -951,7 +952,7 @@ function bookJob(sid,jobId){
     {k:"quote",label:"Quoted price £ ex VAT (installs)",type:"number",owner:true,hint:"Used for the install invoice"},
     {k:"notes",label:"Notes for the engineer",type:"textarea",full:true}
   ];
-  openModal(existing?"Edit booking":"Book a job",formHTML(F,j)+`<div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn" id="svC">Save & add to iCloud</button><button class="btn pri" id="sv">${existing?"Save":"Book job"}</button></div>`,md=>{
+  openModal(existing?"Edit booking":"Book a job",formHTML(F,j)+`<div class="actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn" id="svC">Save & add to calendar</button><button class="btn pri" id="sv">${existing?"Save":"Book job"}</button></div>`,md=>{
     const go=async(cal)=>{const v=readForm(md,F);if(missing(F,v))return;const nid=jobId||"j"+rid(9);const body=Object.assign(j,v,{updatedAt:todayISO()});if(!existing)body.createdAt=todayISO();
       if(await Billing.saveSplit("jobs",nid,body,["quote"],"job:")){closeModal();toast(existing?"Booking updated":"Job booked");if(cal)exportCalendar([nid]);else if(!existing)location.hash="j-"+nid}};
     $("#sv",md).onclick=()=>go(false); $("#svC",md).onclick=()=>go(true);
@@ -1316,21 +1317,27 @@ async function labelSheet(sid,ids){
 function icsEsc(s){return String(s||"").replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;")}
 function icsFold(line){const out=[];while(line.length>73){out.push(line.slice(0,73));line=" "+line.slice(73)}out.push(line);return out.join("\r\n")}
 function icsDT(date,time){return date.replace(/-/g,"")+"T"+(time||"09:00").replace(":","")+"00"}
+// Title, place, times and notes for a booked job, shared by the .ics file and the Google/Outlook links (calendar.js).
+function calEvent(j){
+  const st=set(); const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id); const mats=jobMaterials(j);
+  const time=j.time||"09:00"; const mins=Math.round((Number(j.durationHrs)||1)*60);
+  const [h,m]=time.split(":").map(Number); const endM=h*60+m+mins; const endTime=String(Math.min(23,Math.floor(endM/60))).padStart(2,"0")+":"+String(endM>=24*60?59:endM%60).padStart(2,"0");
+  const desc=[`${j.type} – ${s.name}`,`Client: ${c.name||""}`,`Contact: ${c.contactName||""} ${c.phone||""}`.trim(),s.accessNotes?"Access: "+s.accessNotes:"","",
+    "Units:",...us.map(u=>`• ${u.id} ${unitLabel(u)} ${u.manufacturer||""} ${u.model||""}${u.location?" ("+u.location+")":""}`),"",
+    mats.length?"Materials:":"",...mats.map(x=>`• ${x.qty} x ${x.name}`),j.notes?"\nNotes: "+j.notes:"",st.appUrl?"\nOpen job: "+appUrl()+"#j-"+j.id:""].filter(x=>x!=null).join("\n");
+  return {title:`${j.type} – ${c.name||""} (${s.sitePostcode||siteShort(s)})`,location:[s.siteAddress,s.sitePostcode].filter(Boolean).join(", ").replace(/\n/g,", "),
+    desc,date:j.date,time,endTime};
+}
 function buildICS(jobs){
-  const st=set(); const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
   const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Air Ledger//Asset Manager//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:Air Ledger jobs",
   "BEGIN:VTIMEZONE","TZID:Europe/London","BEGIN:DAYLIGHT","TZOFFSETFROM:+0000","TZOFFSETTO:+0100","TZNAME:BST","DTSTART:19700329T010000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:+0100","TZOFFSETTO:+0000","TZNAME:GMT","DTSTART:19701025T020000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
   for(const j of jobs){
-    const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id); const mats=jobMaterials(j);
-    const start=icsDT(j.date,j.time||"09:00"); const mins=Math.round((Number(j.durationHrs)||1)*60);
-    const [h,m]=(j.time||"09:00").split(":").map(Number); const endM=h*60+m+mins; const end=icsDT(j.date,String(Math.min(23,Math.floor(endM/60))).padStart(2,"0")+":"+String(endM>=24*60?59:endM%60).padStart(2,"0"));
-    const desc=[`${j.type} – ${s.name}`,`Client: ${c.name||""}`,`Contact: ${c.contactName||""} ${c.phone||""}`.trim(),s.accessNotes?"Access: "+s.accessNotes:"","",
-      "Units:",...us.map(u=>`• ${u.id} ${unitLabel(u)} ${u.manufacturer||""} ${u.model||""}${u.location?" ("+u.location+")":""}`),"",
-      mats.length?"Materials:":"",...mats.map(x=>`• ${x.qty} x ${x.name}`),j.notes?"\nNotes: "+j.notes:"",st.appUrl?"\nOpen job: "+appUrl()+"#j-"+j.id:""].filter(x=>x!=null).join("\n");
-    L.push("BEGIN:VEVENT","UID:"+j.id+"@altitude-climate","DTSTAMP:"+stamp,"DTSTART;TZID=Europe/London:"+start,"DTEND;TZID=Europe/London:"+end,
-      icsFold("SUMMARY:"+icsEsc(`${j.type} – ${c.name||""} (${s.sitePostcode||siteShort(s)})`)),
-      icsFold("LOCATION:"+icsEsc([s.siteAddress,s.sitePostcode].filter(Boolean).join(", ").replace(/\n/g,", "))),
-      icsFold("DESCRIPTION:"+icsEsc(desc)),
+    const e=calEvent(j);
+    L.push("BEGIN:VEVENT","UID:"+j.id+"@altitude-climate","DTSTAMP:"+stamp,"DTSTART;TZID=Europe/London:"+icsDT(e.date,e.time),"DTEND;TZID=Europe/London:"+icsDT(e.date,e.endTime),
+      icsFold("SUMMARY:"+icsEsc(e.title)),
+      icsFold("LOCATION:"+icsEsc(e.location)),
+      icsFold("DESCRIPTION:"+icsEsc(e.desc)),
       "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(j.type),"TRIGGER:-P1D","END:VALARM",
       "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEsc(j.type),"TRIGGER:-PT1H","END:VALARM","END:VEVENT");
   }
@@ -1352,10 +1359,16 @@ function zipFiles(files){
   const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cenSize,true);e.setUint32(16,off,true);
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:"application/zip"});
 }
-async function exportCalendar(ids){
-  const jobs=ids?ids.map(job).filter(Boolean):S.jobs.filter(j=>j.status==="booked"&&j.date>=todayISO()).sort(byDateAsc);
+function calendarJobs(ids){return ids?ids.map(job).filter(Boolean):S.jobs.filter(j=>j.status==="booked"&&j.date>=todayISO()).sort(byDateAsc)}
+function calendarFileName(jobs){return jobs.length===1?("job-"+jobs[0].date):"airledger-bookings"}
+// Choose iPhone/iCloud, Google or Outlook (calendar.js).
+function exportCalendar(ids){
+  const jobs=calendarJobs(ids);
   if(!jobs.length){toast("No upcoming bookings to export");return}
-  const name=jobs.length===1?("job-"+jobs[0].date):"airledger-bookings";
+  CalendarExport.choose(jobs);
+}
+async function exportICloud(jobs){
+  const name=calendarFileName(jobs);
   const ok=await saveFile(name+".zip",zipFiles([{name:name+".ics",data:buildICS(jobs)}]));
   if(ok) openModal("Add to iCloud Calendar",`<p>The calendar file is saved as a zip.</p><ol style="padding-left:20px;line-height:1.6"><li>On your iPhone, open it in <b>Files</b> – tap the zip to unpack it.</li><li>Tap the <b>.ics</b> file, then <b>Add All</b> and choose your iCloud calendar.</li></ol><p class="note">On a Mac, double-click the .ics to add it to Calendar. Re-exporting the same job updates it rather than duplicating it.</p><div class="actions"><button class="btn pri" onclick="closeModal()">Done</button></div>`);
 }
