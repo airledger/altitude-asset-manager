@@ -102,3 +102,100 @@ input {
 .note {
   color: var(--muted);
 }
+h2 {
+  font: 600 16px var(--f-display);
+  margin: 4px 0 0;
+}
+main {
+  display: grid;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.link {
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  color: var(--navy);
+  text-decoration: underline;
+  font: 14px var(--f-body);
+  cursor: pointer;
+  text-align: left;
+}
+.btn.danger {
+  color: var(--red);
+}
+.ok {
+  color: #1f7a4a;
+  margin: 0;
+}
+.brand,
+.bizbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand img,
+.bizbar img,
+.logo-row img {
+  height: 36px;
+  max-width: 120px;
+  object-fit: contain;
+}
+.bizbar select {
+  font: 600 15px var(--f-body);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  min-height: 44px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs a {
+  padding: 10px 12px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.tabs a[aria-current="page"] {
+  color: var(--navy);
+  border-color: var(--air);
+  font-weight: 600;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.copy {
+  display: flex;
+  gap: 8px;
+}
+.copy input {
+  flex: 1;
+  min-width: 0;
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

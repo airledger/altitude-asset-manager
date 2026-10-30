@@ -8,6 +8,7 @@
 - `20261030190000_typed_tables.sql` adds the rebuild's typed tables beside `docs`: one per record in
   `specs/02-domain-model.md`, row-level security per `specs/04-tenancy-roles-security.md`, owner-only price and
   invoice tables, `reserve_stickers` and `create_invoice`, and an audit log. The live app doesn't use them yet.
+- `20261031090000_invite_expiry.sql`: invites run out after 14 days; joining or setting up a business checks it.
 - `tests/`: pgTAP permission tests (`supabase test db`), run by CI. They prove an engineer can't read prices,
   one business can't see another's records, signed-out users get nothing, and issued reports can't be changed.
 - `functions/`: edge functions. `send-report` is still deployed by hand for the live app.
