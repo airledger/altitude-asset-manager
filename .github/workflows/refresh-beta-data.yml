@@ -32,12 +32,20 @@ jobs:
           for v in SUPABASE_ACCESS_TOKEN PROD_PASSWORD BETA_PASSWORD; do
             [ -n "${!v}" ] || { echo "::error::Missing secret for $v"; exit 1; }
           done
-          url() { # $1 project ref, $2 password: link, then read the pooler address the CLI saved
-            SUPABASE_DB_PASSWORD="$2" supabase link --project-ref "$1" >/dev/null
-            cat supabase/.temp/pooler-url
-          }
-          echo "PROD_URL=$(url "$PROD_REF" "$PROD_PASSWORD")" >> "$GITHUB_ENV"
-          echo "BETA_URL=$(url "$BETA_REF" "$BETA_PASSWORD")" >> "$GITHUB_ENV"
+          # Beta: link with the access token and read the pooler address the CLI saves.
+          SUPABASE_DB_PASSWORD="$BETA_PASSWORD" supabase link --project-ref "$BETA_REF" >/dev/null
+          BETA_URL=$(cat supabase/.temp/pooler-url)
+          # Production's session pooler (from the live project's Connect → Session pooler; no password in it).
+          # The access token can't see the live project, which is under another Supabase login.
+          PROD_URL="postgresql://postgres.$PROD_REF@aws-0-eu-north-1.pooler.supabase.com:5432/postgres"
+          if ! err=$(PGPASSWORD="$PROD_PASSWORD" psql "$PROD_URL" -X -q -t -c "select 1" 2>&1 >/dev/null); then
+            echo "$(echo "$err" | tail -1)"   # psql errors never include the password
+            PROD_URL=""
+          fi
+          [ -n "$PROD_URL" ] || { echo "::error::Couldn't connect to production. Check SUPABASE_PROD_DB_PASSWORD."; exit 1; }
+          [ -n "$BETA_URL" ] || { echo "::error::Couldn't find the beta database address."; exit 1; }
+          echo "PROD_URL=$PROD_URL" >> "$GITHUB_ENV"
+          echo "BETA_URL=$BETA_URL" >> "$GITHUB_ENV"
       - name: Read production (read-only)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
