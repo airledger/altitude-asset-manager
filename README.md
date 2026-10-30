@@ -8,6 +8,7 @@ The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run
 - `supabase-setup.sql`: run once in Supabase to create the table, sync and photo bucket
 - `supabase-multi-business.sql`: run once after that to give each business its own private data, invites and logos
 - `business.js`: sign-up, business set-up, company profile, team invites and account deletion
+- `service-report.js`: signed PDF service reports (engineer and customer sign on screen; sent to the client and the office)
 - `manifest.json`, `icon-*.png`, `favicon-32.png`, `logo-reverse.svg`: Air Ledger branding and "Add to Home Screen" support
 
 ## Supabase setup (once)
@@ -34,3 +35,9 @@ Each business has its own private records, photos and logo; the database only sh
 - Settings → Delete account removes a user's login, or a whole business with its records and photos.
 
 To turn on: run `supabase-multi-business.sql`, then in Supabase Authentication turn on "Allow new users to sign up" and set the Site URL to the app's address.
+
+## Service reports
+When a job is completed the app asks the engineer, and the customer if they're there, to sign on screen. It then builds a PDF with the business's logo and details, the client and site, every unit's checks and readings, F-gas details, parts used, photos and both signatures.
+- Each report gets a reference (`SR-YYMMDD-XXXX`, or `CR-` for installs) and a fingerprint of the record. If the job is edited afterwards, the job page says so and the report can be re-issued as a new revision.
+- The PDF is stored with the job's photos. "Send report" shares it from a phone's share sheet, or opens an email to the client with the office copied and a download link that lasts a year.
+- Set the office address in Settings → Service reports.

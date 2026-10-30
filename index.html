@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="business.js"></script>
+<script src="service-report.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -652,7 +653,7 @@ function viewJob(id){
   <div class="row" style="margin-bottom:14px">
     ${j.status==="booked"&&isInstall(j)?`<button class="btn" onclick="stickerPrompt('${s.id}')">📷 Scan sticker – add unit</button>`:""}
     ${j.status==="booked"?`<button class="btn pri" onclick="completeJob('${id}')">Complete job</button><button class="btn" onclick="exportCalendar(['${id}'])">📅 Add to iCloud</button><button class="btn" onclick="bookJob(null,'${id}')">Reschedule / edit</button><button class="btn" onclick="toggleOrdered('${id}')">${j.materialsOrdered?"Mark parts not ordered":"Mark parts ordered"}</button><button class="btn danger" onclick="cancelJob('${id}')">Cancel</button>`:""}
-    ${j.status==="completed"?(inv?`<a class="btn" href="#i-${inv.id}">Invoice ${esc(inv.number)}</a>`:`<button class="btn pri" onclick="createInvoice('${id}')">Create invoice</button>`)+`<button class="btn" onclick="downloadJobReport('${id}')">📄 Download report</button><button class="btn" onclick="completeJob('${id}')">Edit ${isInstall(j)?"commissioning":"service"} record</button>`:""}
+    ${j.status==="completed"?(inv?`<a class="btn" href="#i-${inv.id}">Invoice ${esc(inv.number)}</a>`:`<button class="btn pri" onclick="createInvoice('${id}')">Create invoice</button>`)+`<button class="btn" onclick="ServiceReport.open('${id}')">📄 Service report</button><button class="btn" onclick="completeJob('${id}')">Edit ${isInstall(j)?"commissioning":"service"} record</button>`:""}
     ${j.status==="cancelled"?`<button class="btn" onclick="reopenJob('${id}')">Re-open</button><button class="btn danger" onclick="deleteJob('${id}')">Delete</button>`:""}
   </div>
   <div class="grid2"><div class="card"><h2>Visit</h2><dl class="kv">
@@ -668,7 +669,7 @@ function viewJob(id){
   <div class="card"><h2>Materials for this job <span class="sp"></span>${j.materialsOrdered?'<span class="pill green">Ordered</span>':""}</h2>
     ${mats.length?`<table class="t"><thead><tr><th>Item</th><th>Supplier</th><th class="n">Qty</th></tr></thead><tbody>${mats.map(m=>`<tr><td>${esc(m.name)}${m.sku?` <span class="note">${esc(m.sku)}</span>`:""}${m.chargeable?' <span class="pill grey">chargeable</span>':""}</td><td>${esc(m.supplier)}</td><td class="n">${m.qty}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">No materials matched. Set up your service kit in <a href="#materials">Materials</a>.</div>'}
   </div></div>
-  ${j.status==="completed"?jobRecord(j,us):""}
+  ${j.status==="completed"?ServiceReport.card(j)+jobRecord(j,us):""}
   ${reportsCard({jobId:id,systemId:s.id},"Job reports & photos")}`;
 }
 function jobRecord(j,us){
@@ -747,6 +748,8 @@ const SETTINGS_FIELDS=[
   {k:"website",label:"Website"},{k:"companyNo",label:"Company number"},{k:"vatNo",label:"VAT number"},
   {k:"engineer",label:"Default engineer"},{k:"fgasCert",label:"F-gas company cert no."},
   {k:"appUrl",label:"App link (for QR codes)",full:true,hint:"This app's web address. QR labels open it at the scanned unit. Leave blank to use the current address."},
+  {sec:"Service reports"},
+  {k:"reportEmail",label:"Office copy of service reports to",type:"email",hint:"Every signed report is copied here as proof the job was done. Leave blank to use the business email"},
   {sec:"Service reminders"},
   {k:"defaultInterval",label:"Default service interval (months)",type:"number"},
   {k:"reminderLeadDays",label:"Start reminding (days before due)",type:"number"},
@@ -1010,7 +1013,7 @@ function completeJob(id,fallback){
       if(inst&&s.id){const sd=clone(system(s.id));if(d.type==="Installation")sd.installDate=date;if(d.commissioning.addedKg!=="")sd.addedChargeKg=d.commissioning.addedKg;if(eng)sd.commissionedBy=eng;await put("systems",s.id,sd)}
       if(!wasDone&&(photos.length||notes)){await put("reports","r"+rid(9),{systemId:s.id,jobId:id,unitId:"",kind:inst?"Install / commissioning report":"Service report",date,author:eng,text:notes,photos,createdAt:new Date().toISOString()})}
       closeModal();toast(wasDone?"Record saved":inst?"Install completed – first service due "+fmtDate(addMonths(date,info.interval)):"Job completed – next service due "+fmtDate(addMonths(date,info.interval)));
-      if(inv&&!wasDone)setTimeout(()=>createInvoice(id),150);else location.hash="j-"+id};
+      if(inv&&!wasDone)setTimeout(()=>createInvoice(id),150);else{location.hash="j-"+id;if(!wasDone)setTimeout(()=>ServiceReport.signOff(id),150)}};
     if($("#cSave",md))$("#cSave",md).onclick=()=>go(false);
     $("#cInv",md).onclick=()=>go(!wasDone);
   });
@@ -1192,38 +1195,6 @@ function editReport(id,systemId,unitId,jobId){
     if(ex)$("#rDel",md).onclick=async()=>{if(await confirmBox("Delete this report?")){for(const p of photos){try{await assets?.delete(p)}catch(e){}}await remove("reports",id)}};
   });
 }
-async function blobToDataUrl(id){try{const r=await fetch(photoSrc(id));if(!r.ok)return null;const b=await r.blob();return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b)})}catch(e){return null}}
-async function downloadJobReport(id){
-  const j=job(id); const s=system(j.systemId)||{}; const c=client(s.clientId)||{}; const us=unitsOf(s.id); const st=set(); const info=sysInfo(s);
-  const reps=S.reports.filter(r=>r.jobId===id).sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
-  toast("Building report…");
-  const imgs={}; for(const r of reps)for(const p of (r.photos||[]))imgs[p]=await blobToDataUrl(p);
-  const inst=isInstall(j); const lc=j.leakCheck||{}; const cm=j.commissioning||{};
-  const title=inst?"Installation & Commissioning Record":"Air Conditioning Service Report";
-  const row=(k,v)=>v?`<tr><th>${esc(k)}</th><td>${v}</td></tr>`:"";
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} – ${esc(c.name||"")}</title><style>
-  body{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:800px;margin:0 auto;padding:24px;font-size:13px}
-  .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0a6fb8;padding-bottom:10px;margin-bottom:16px}
-  .hd h1{margin:0;font-size:20px;color:#0a6fb8}.hd .b{font-weight:bold;font-size:16px}
-  h2{font-size:15px;margin:20px 0 8px;color:#0a3d66}table{width:100%;border-collapse:collapse}
-  th,td{text-align:left;padding:6px 8px;border:1px solid #d5dde5;vertical-align:top}th{background:#f1f6fa;width:34%;font-weight:600}
-  table.u th{width:auto}.ph{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.ph img{width:240px;max-width:48%;border-radius:6px;border:1px solid #ccc}
-  .ft{margin-top:28px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:8px}.pre{white-space:pre-line}
-  @media print{body{padding:0}}</style></head><body>
-  <div class="hd"><div>${Biz.logoImg()}<div class="b">${esc(st.businessName)}</div>${st.address?`<div>${esc(st.address).replace(/\n/g,", ")}</div>`:""}<div>${esc(st.phone||"")} ${esc(st.email||"")}</div>${st.fgasCert?`<div>F-gas company certificate: ${esc(st.fgasCert)}</div>`:""}</div><div style="text-align:right"><h1>${esc(title)}</h1><div>${fmtDate(j.date)}</div></div></div>
-  <h2>Client & site</h2><table>${row("Client",esc(c.name))}${row("Site",esc((s.siteAddress||"").replace(/\n/g,", "))+(s.sitePostcode?", "+esc(s.sitePostcode):""))}${row("System",esc(s.name))}${row("Engineer",esc(j.engineer))}${row("Job type",esc(j.type))}</table>
-  <h2>Equipment</h2><table class="u"><tr><th>Asset ID</th><th>Type</th><th>Make / model</th><th>Serial</th><th>Location</th></tr>${us.map(u=>`<tr><td>${esc(u.id)}</td><td>${esc(unitLabel(u))}</td><td>${esc(u.manufacturer||"")} ${esc(u.model||"")}</td><td>${esc(u.serial||"")}</td><td>${esc(u.location||"")}</td></tr>`).join("")}</table>
-  <h2>Refrigerant (F-gas)</h2><table>${row("Refrigerant",esc(s.refrigerant)+" (GWP "+info.f.gwp+")")}${row("Total charge",num(info.f.kg,3)+" kg")}${row("CO₂ equivalent",num(info.f.t,2)+" tonnes")}${row("Leak checks",info.f.required?"Required every "+info.f.months+" months":"Not mandatory (below threshold)")}</table>
-  ${inst?`<h2>Commissioning</h2><table>${row("Nitrogen pressure test",cm.pressureBar?esc(cm.pressureBar)+" bar for "+esc(cm.pressureMins||"—")+" min – "+(cm.pressureHeld===false?"FAILED":"held"):"")}${row("Vacuum achieved",cm.vacuumMicrons?esc(cm.vacuumMicrons)+" microns"+(cm.decayHeld?" – decay test held":""):"")}${row("Pipe run",cm.pipeM?esc(cm.pipeM)+" m":"")}${row("Additional refrigerant charged",cm.addedKg!==""&&cm.addedKg!=null?num(cm.addedKg,3)+" kg":"")}${row("Handover",cm.handover?"Controls demonstrated and documents left with customer":"")}${row("Customer",esc(cm.customerName||""))}</table>`
-  :`<h2>Leak check</h2><table>${row("Carried out",lc.performed?"Yes – "+esc(lc.method||""):"No")}${row("Result",lc.performed?(lc.result==="fail"?"LEAK FOUND":"No leaks found"):"")}${row("Refrigerant added",lc.addedKg?num(lc.addedKg,3)+" kg":"")}${row("Refrigerant recovered",lc.recoveredKg?num(lc.recoveredKg,3)+" kg":"")}${row("Notes",esc(lc.notes||""))}</table>`}
-  <h2>Checks by unit</h2><table class="u"><tr><th>Unit</th><th>Checks completed</th><th>Readings</th><th>Notes</th></tr>${us.map(u=>{const ck=(j.unitChecks||{})[u.id]||{};return `<tr><td>${esc(u.id)}<br><small>${esc(u.location||unitLabel(u))}</small></td><td>${esc(Object.entries(ALLCHECKS).filter(([k])=>ck[k]).map(([,l])=>l).join(", ")||"—")}</td><td>${[ck.offCoil?"Off-coil "+esc(ck.offCoil)+"°C":"",ck.onCoil?"On-coil "+esc(ck.onCoil)+"°C":"",ck.amps?esc(ck.amps)+" A":"",ck.pressure?esc(ck.pressure)+" bar":""].filter(Boolean).join("<br>")||"—"}</td><td>${esc(ck.notes||"")}</td></tr>`}).join("")}</table>
-  ${j.completionNotes?`<h2>Summary</h2><div class="pre">${esc(j.completionNotes)}</div>`:""}
-  ${reps.length?`<h2>Engineer reports</h2>${reps.map(r=>`<p><b>${esc(r.kind)}</b> – ${fmtDate(r.date)}${r.author?" – "+esc(r.author):""}${r.unitId?" – "+esc(r.unitId):""}</p>${r.text?`<div class="pre">${esc(r.text)}</div>`:""}${(r.photos||[]).length?`<div class="ph">${r.photos.map(p=>imgs[p]?`<img src="${imgs[p]}">`:"").join("")}</div>`:""}`).join("")}`:""}
-  ${!inst?`<h2>Next service</h2><p>Due ${fmtDate(addMonths(j.date,info.interval))}</p>`:`<h2>First service</h2><p>Due ${fmtDate(addMonths(j.date,info.interval))}. Annual servicing keeps the manufacturer's warranty valid.</p>`}
-  <div class="ft">${esc(st.businessName)}${st.tradingAs?" – part of "+esc(st.tradingAs):""}.${st.companyNo?" Company no. "+esc(st.companyNo)+".":""}${st.vatNo?" VAT no. "+esc(st.vatNo)+".":""} Record generated ${fmtDate(todayISO())}.</div></body></html>`;
-  await saveFile((inst?"commissioning-record-":"service-report-")+(c.name||"client").replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-"+j.date+".html",html);
-}
-
 /* ================= stickers & registering on scan ================= */
 function stickerHTML(id){
   const st=set();
