@@ -156,6 +156,7 @@ const DEFAULTS = {
   labourFirst:95, labourAdditional:45, labourHourly:60, leakCheckCharge:40, refrigerantPerKg:60, calloutCharge:75,
   vatRegistered:true, invoicePrefix:"AC-", nextInvoiceNo:1001, paymentDays:14, accountCode:"200",
   taxType:"20% (VAT on Income)", trackingName:"", trackingOption:"",
+  accountsApp:"xero", qbItem:"Services", qbTaxCode:"20.0% S",
   emailSubject:"Your air conditioning service is due – {site}",
   emailBody:"Hi {contact},\n\nOur records show the air conditioning at {site} ({units}) is due its annual service on {dueDate}.\n\nRegular servicing keeps the system running efficiently, keeps the air clean and keeps your manufacturer's warranty valid.\n\nJust reply to this email or call us on {phone} and we'll book a time that suits you.\n\nKind regards,\n{engineer}\n{business}",
   smsBody:"Hi {contact}, it's {engineer} from {business}. Your air con at {site} is due its annual service ({dueDate}). Reply or call {phone} to book a time. Thanks!"
@@ -194,6 +195,7 @@ function byDateDesc(a,b){return (b.date||"").localeCompare(a.date||"")||(b.time|
 function byDateAsc(a,b){return (a.date||"").localeCompare(b.date||"")||(a.time||"").localeCompare(b.time||"")}
 function clone(o){return JSON.parse(JSON.stringify(o??{}))}
 function set(){return Object.assign({},DEFAULTS,S.settings||{})}
+function acc(){return set().accountsApp==="quickbooks"?"QuickBooks":"Xero"}
 function toast(msg,kind){const t=$("#toast");t.textContent=msg;t.className="on"+(kind==="err"?" err":"");clearTimeout(toast._t);toast._t=setTimeout(()=>t.className="",kind==="err"?4500:2600)}
 function fill(tpl,map){return String(tpl||"").replace(/\{(\w+)\}/g,(m,k)=>map[k]!=null?map[k]:m)}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Copied")}catch(e){toast("Couldn't copy – select the text and copy manually","err")}}
@@ -468,7 +470,7 @@ function viewDashboard(){
     <div class="kpi red" onclick="document.getElementById('due').scrollIntoView({behavior:'smooth'})"><b>${overdue}</b><span>Overdue services</span></div>
     <div class="kpi green" onclick="location.hash='jobs'"><b>${upcoming.length}</b><span>Jobs booked, next 14 days</span></div>
     <div class="kpi" onclick="location.hash='orders'"><b>${toOrder}</b><span>Jobs with parts to order</span></div>
-    <div class="kpi" onclick="location.hash='invoices'"><b>${drafts}</b><span>Invoices to send to Xero</span></div>
+    <div class="kpi" onclick="location.hash='invoices'"><b>${drafts}</b><span>Invoices to send to ${acc()}</span></div>
   </div>
   <div class="row" style="margin-bottom:14px">
     <button class="btn pri" onclick="editClient()">+ New client</button>
@@ -525,7 +527,7 @@ function viewClient(id){
     <dt>Prefers</dt><dd>${esc(c.preferredContact||"Email")}</dd>
     <dt>Reminders</dt><dd>${c.remindersOptIn===false?"Off":"On"}</dd>
     <dt>Service plan</dt><dd>${esc(c.servicePlan||"None")}${c.servicePlan==="Annual service plan"&&c.planPrice?" · "+money(c.planPrice)+" + VAT":""}</dd>
-    <dt>Xero contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>
+    <dt>${acc()} contact</dt><dd>${esc(c.xeroContactName||c.name)}</dd>
     ${c.notes?`<dt>Notes</dt><dd style="white-space:pre-line">${esc(c.notes)}</dd>`:""}
   </dl></div>
   <div class="card"><h2>Systems <span class="pill">${ss.length}</span></h2><div class="list">${ss.length?ss.map(systemItem).join(""):'<div class="empty">No systems yet.</div>'}</div></div></div>
@@ -705,21 +707,21 @@ async function toggleOrdered(id){const j=clone(job(id));j.materialsOrdered=!j.ma
 
 /* ---------- invoices ---------- */
 function invTotals(inv){const net=r2((inv.lines||[]).reduce((t,l)=>t+r2((Number(l.qty)||0)*(Number(l.unit)||0)),0));const vat=inv.vat?r2(net*0.2):0;return{net,vat,gross:r2(net+vat)}}
-function invItem(i){const c=client(i.clientId)||{};const t=invTotals(i);return `<div class="item click" onclick="location.hash='i-${i.id}'"><div class="main"><div class="t">${esc(i.number)} · ${esc(c.name||"—")}</div><div class="m">${fmtDate(i.date)} · ${esc(i.reference||"")}</div></div><div style="text-align:right"><div style="font-weight:600">${money(t.gross)}</div>${i.status==="exported"?'<span class="pill green">In Xero</span>':'<span class="pill amber">Draft</span>'}</div></div>`}
+function invItem(i){const c=client(i.clientId)||{};const t=invTotals(i);return `<div class="item click" onclick="location.hash='i-${i.id}'"><div class="main"><div class="t">${esc(i.number)} · ${esc(c.name||"—")}</div><div class="m">${fmtDate(i.date)} · ${esc(i.reference||"")}</div></div><div style="text-align:right"><div style="font-weight:600">${money(t.gross)}</div>${i.status==="exported"?'<span class="pill green">In '+acc()+'</span>':'<span class="pill amber">Draft</span>'}</div></div>`}
 function viewInvoices(){
   const v=ui.invView; const list=S.invoices.filter(i=>v==="all"||(v==="draft"?i.status!=="exported":i.status==="exported")).sort(byDateDesc);
   const drafts=S.invoices.filter(i=>i.status!=="exported");
-  return `<h1 class="pg">Invoices</h1><div class="sub">Created from completed jobs, then sent to Xero as draft invoices</div>
-  <div class="row" style="margin-bottom:12px"><button class="btn pri" ${drafts.length?"":"disabled"} onclick="exportXero()">Export ${drafts.length} to Xero</button><button class="btn" onclick="createInvoice()">+ Blank invoice</button></div>
-  <div class="card" style="font-size:13.5px"><b>Getting them into Xero:</b> tap <i>Export to Xero</i> to save a CSV, then in Xero go to <b>Sales → Invoices → Import</b> and upload it. They arrive as drafts for you to approve and send. Contacts are matched by name, so keep the client's <i>Xero contact name</i> the same as in Xero.</div>
-  <div class="seg">${[["draft","Not in Xero"],["exported","In Xero"],["all","All"]].map(([k,l])=>`<button class="${v===k?"on":""}" onclick="ui.invView='${k}';render()">${l}</button>`).join("")}</div>
+  return `<h1 class="pg">Invoices</h1><div class="sub">Created from completed jobs, then sent to ${acc()} as ${acc()==="Xero"?"draft invoices":"invoices"}</div>
+  <div class="row" style="margin-bottom:12px"><button class="btn pri" ${drafts.length?"":"disabled"} onclick="exportInvoices()">Export ${drafts.length} to ${acc()}</button><button class="btn" onclick="createInvoice()">+ Blank invoice</button></div>
+  <div class="card" style="font-size:13.5px">${acc()==="Xero"?`<b>Getting them into Xero:</b> tap <i>Export to Xero</i> to save a CSV, then in Xero go to <b>Sales → Invoices → Import</b> and upload it. They arrive as drafts for you to approve and send. Contacts are matched by name, so keep the client's <i>contact name in accounts</i> the same as in Xero.`:`<b>Getting them into QuickBooks:</b> tap <i>Export to QuickBooks</i> to save a CSV, then in QuickBooks Online go to <b>Settings (gear) → Import data → Invoices</b>, upload it and check the column mapping. Up to 100 invoices per file. Customers are matched by name, so keep the client's <i>contact name in accounts</i> the same as in QuickBooks. The product/service and VAT code in Settings must already exist in QuickBooks.`}</div>
+  <div class="seg">${[["draft","Not in "+acc()],["exported","In "+acc()],["all","All"]].map(([k,l])=>`<button class="${v===k?"on":""}" onclick="ui.invView='${k}';render()">${l}</button>`).join("")}</div>
   <div class="card"><div class="list">${list.length?list.map(invItem).join(""):'<div class="empty">No invoices here.</div>'}</div></div>`;
 }
 function viewInvoice(id){
   const i=invoice(id); if(!i) return notFound("invoice");
   const c=client(i.clientId)||{}; const t=invTotals(i);
-  return `<div class="note"><a href="#invoices">← Invoices</a></div><h1 class="pg">Invoice ${esc(i.number)}</h1><div class="sub">${esc(c.name||"")} · ${i.status==="exported"?'<span class="pill green">Exported to Xero '+fmtDate(i.exportedAt)+'</span>':'<span class="pill amber">Draft – not in Xero yet</span>'}</div>
-  <div class="row" style="margin-bottom:14px"><button class="btn pri" onclick="exportXero(['${id}'])">${i.status==="exported"?"Re-export":"Export"} to Xero (CSV)</button><button class="btn" onclick="editInvoice('${id}')">Edit</button>${i.jobId?`<a class="btn" href="#j-${i.jobId}">View job</a>`:""}${i.status==="exported"?`<button class="btn" onclick="markInv('${id}','draft')">Mark not exported</button>`:""}<button class="btn danger" onclick="deleteInvoice('${id}')">Delete</button></div>
+  return `<div class="note"><a href="#invoices">← Invoices</a></div><h1 class="pg">Invoice ${esc(i.number)}</h1><div class="sub">${esc(c.name||"")} · ${i.status==="exported"?'<span class="pill green">Exported to '+acc()+' '+fmtDate(i.exportedAt)+'</span>':'<span class="pill amber">Draft – not in '+acc()+' yet</span>'}</div>
+  <div class="row" style="margin-bottom:14px"><button class="btn pri" onclick="exportInvoices(['${id}'])">${i.status==="exported"?"Re-export":"Export"} to ${acc()} (CSV)</button><button class="btn" onclick="editInvoice('${id}')">Edit</button>${i.jobId?`<a class="btn" href="#j-${i.jobId}">View job</a>`:""}${i.status==="exported"?`<button class="btn" onclick="markInv('${id}','draft')">Mark not exported</button>`:""}<button class="btn danger" onclick="deleteInvoice('${id}')">Delete</button></div>
   <div class="card"><dl class="kv" style="margin-bottom:12px"><dt>Bill to</dt><dd>${esc(c.xeroContactName||c.name||"")}</dd><dt>Date</dt><dd>${fmtDate(i.date)}</dd><dt>Due</dt><dd>${fmtDate(i.dueDate)}</dd><dt>Reference</dt><dd>${esc(i.reference||"")}</dd></dl>
   <div class="tw"><table class="t"><thead><tr><th>Description</th><th class="n">Qty</th><th class="n">Unit</th><th class="n">Amount</th></tr></thead><tbody>${(i.lines||[]).map(l=>`<tr><td>${esc(l.desc)}</td><td class="n">${num(l.qty)}</td><td class="n">${money(l.unit)}</td><td class="n">${money((Number(l.qty)||0)*(Number(l.unit)||0))}</td></tr>`).join("")}</tbody></table></div>
   <div class="tot">Net ${money(t.net)}${i.vat?" · VAT 20% "+money(t.vat):" · No VAT"}<br>Total <b>${money(t.gross)}</b></div></div>`;
@@ -757,18 +759,23 @@ const SETTINGS_FIELDS=[
   {k:"refrigerantPerKg",label:"Refrigerant top-up per kg (£)",type:"number"},
   {k:"calloutCharge",label:"Repair call-out (£)",type:"number"},
   {k:"labourHourly",label:"Labour per hour (£)",type:"number"},
-  {sec:"Xero"},
+  {sec:"Invoices & accounts"},
+  {k:"accountsApp",label:"Accounts software",type:"select",options:[["xero","Xero"],["quickbooks","QuickBooks Online"]],hint:"Sets which CSV format invoices export in"},
   {k:"vatRegistered",label:"VAT registered (adds 20%)",type:"checkbox"},
   {k:"invoicePrefix",label:"Invoice number prefix"},{k:"nextInvoiceNo",label:"Next invoice number",type:"number"},
   {k:"paymentDays",label:"Payment terms (days)",type:"number"},
+  {sec:"Xero"},
   {k:"accountCode",label:"Sales account code",hint:"200 is Sales in a standard UK Xero chart"},
   {k:"taxType",label:"Tax rate name",hint:"Exactly as in Xero, e.g. 20% (VAT on Income)"},
   {k:"trackingName",label:"Tracking category (optional)",hint:"e.g. Division – keeps Climate separate from Electrical"},
-  {k:"trackingOption",label:"Tracking option",hint:"e.g. Altitude Climate"}
+  {k:"trackingOption",label:"Tracking option",hint:"e.g. Altitude Climate"},
+  {sec:"QuickBooks Online"},
+  {k:"qbItem",label:"Product/service",hint:"Exactly as in QuickBooks, e.g. Services"},
+  {k:"qbTaxCode",label:"VAT code",hint:"Exactly as in QuickBooks, e.g. 20.0% S"}
 ];
 function viewSettings(){
   const st=set();
-  return `<h1 class="pg">Settings</h1><div class="sub">Pricing, reminders and Xero details</div>
+  return `<h1 class="pg">Settings</h1><div class="sub">Pricing, reminders and accounts details</div>
   <div class="card" id="setForm">${formHTML(SETTINGS_FIELDS,st)}<div class="actions"><button class="btn pri" onclick="saveSettingsForm()">Save settings</button></div></div>
   <div class="card"><h2>Backup & records</h2><div class="row"><button class="btn" onclick="backup()">Download full backup (JSON)</button><button class="btn" onclick="restoreBackup()">Restore from backup</button><button class="btn" onclick="signOut()">Sign out</button><button class="btn" onclick="exportFgas()">F-gas register (CSV)</button></div><p class="note">Keep F-gas records for at least 5 years.</p></div>`;
 }
@@ -812,7 +819,7 @@ const CLIENT_FIELDS=[
   {k:"email",label:"Email",type:"email"},{k:"preferredContact",label:"Prefers",type:"select",options:["Email","Phone","Text message","WhatsApp"]},
   {k:"billingAddress",label:"Billing address",type:"textarea"},{k:"postcode",label:"Postcode"},
   {k:"servicePlan",label:"Service plan",type:"select",options:["None","Annual service plan"]},{k:"planPrice",label:"Plan price per visit (£ ex VAT)",type:"number"},
-  {k:"xeroContactName",label:"Xero contact name",hint:"Leave blank to use the client name"},
+  {k:"xeroContactName",label:"Contact name in accounts",hint:"As it appears in Xero or QuickBooks. Leave blank to use the client name"},
   {k:"remindersOptIn",label:"Send service reminders",type:"checkbox",def:true},
   {k:"notes",label:"Notes",type:"textarea",full:true}
 ];
@@ -1065,20 +1072,32 @@ function invoiceEditor(id,inv){
         closeModal();toast(id?"Invoice saved":"Invoice "+body.number+" created");location.hash="i-"+nid}};
   });
 }
-async function deleteInvoice(id){const i=invoice(id);if(await confirmBox("Delete invoice "+i.number+"? If it's already in Xero, void it there too.")){if(i.jobId&&job(i.jobId)){const d=clone(job(i.jobId));d.invoiceId="";await put("jobs",d.id,d)}await remove("invoices",id);location.hash="invoices"}}
+async function deleteInvoice(id){const i=invoice(id);if(await confirmBox("Delete invoice "+i.number+"? If it's already in "+acc()+", void it there too.")){if(i.jobId&&job(i.jobId)){const d=clone(job(i.jobId));d.invoiceId="";await put("jobs",d.id,d)}await remove("invoices",id);location.hash="invoices"}}
 async function markInv(id,status){const d=clone(invoice(id));d.status=status;if(status!=="exported")d.exportedAt="";await put("invoices",id,d)}
 function toCSV(rows){return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(",")).join("\r\n")+"\r\n"}
-async function exportXero(ids){
+async function exportInvoices(ids){
   const st=set(); const list=ids?ids.map(invoice).filter(Boolean):S.invoices.filter(i=>i.status!=="exported");
   if(!list.length){toast("Nothing to export");return}
+  const qb=st.accountsApp==="quickbooks", rows=qb?quickbooksRows(list,st):xeroRows(list,st);
+  if(await saveFile((qb?"quickbooks":"xero")+"-invoices-"+todayISO()+".csv",toCSV(rows))){
+    for(const i of list){const d=clone(i);d.status="exported";d.exportedAt=todayISO();await put("invoices",i.id,d)}
+    toast(list.length+" invoice"+(list.length>1?"s":"")+" ready to import into "+acc());
+  }
+}
+function xeroRows(list,st){
   const H=["*ContactName","EmailAddress","POAddressLine1","POAddressLine2","POAddressLine3","POAddressLine4","POCity","PORegion","POPostalCode","POCountry","*InvoiceNumber","Reference","*InvoiceDate","*DueDate","InventoryItemCode","*Description","*Quantity","*UnitAmount","Discount","*AccountCode","*TaxType","TrackingName1","TrackingOption1","TrackingName2","TrackingOption2","Currency","BrandingTheme"];
   const rows=[H];
   for(const i of list){const c=client(i.clientId)||{};const a=(c.billingAddress||"").split(/\n|,/).map(x=>x.trim()).filter(Boolean);
     for(const l of i.lines)rows.push([c.xeroContactName||c.name||"",c.email||"",a[0]||"",a[1]||"",a[2]||"",a[3]||"","","",c.postcode||"","United Kingdom",i.number,i.reference||"",fmtUK(i.date),fmtUK(i.dueDate),"",l.desc,l.qty,Number(l.unit).toFixed(2),"",st.accountCode,i.vat?st.taxType:"No VAT",st.trackingName,st.trackingName?st.trackingOption:"","","","GBP",""])}
-  if(await saveFile("xero-invoices-"+todayISO()+".csv",toCSV(rows))){
-    for(const i of list){const d=clone(i);d.status="exported";d.exportedAt=todayISO();await put("invoices",i.id,d)}
-    toast(list.length+" invoice"+(list.length>1?"s":"")+" ready to import into Xero");
-  }
+  return rows;
+}
+// QuickBooks Online (UK) invoice import: one row per line, lines grouped by InvoiceNo
+function quickbooksRows(list,st){
+  const rows=[["*InvoiceNo","*Customer","*InvoiceDate","*DueDate","Terms","Location","Memo","Item(Product/Service)","ItemDescription","ItemQuantity","ItemRate","*ItemAmount","*ItemTaxCode","ItemTaxAmount","Currency","Service Date"]];
+  for(const i of list){const c=client(i.clientId)||{};
+    for(const l of i.lines){const amt=r2((Number(l.qty)||0)*(Number(l.unit)||0));
+      rows.push([i.number,c.xeroContactName||c.name||"",fmtUK(i.date),fmtUK(i.dueDate),"","",i.reference||"",st.qbItem,l.desc,l.qty,Number(l.unit).toFixed(2),amt.toFixed(2),i.vat?st.qbTaxCode:"No VAT",i.vat?r2(amt*0.2).toFixed(2):"0.00","GBP",""])}}
+  return rows;
 }
 
 /* ---------- materials CRUD ---------- */
