@@ -27,10 +27,14 @@ One row per line, grouped by invoice number. Columns:
 `*InvoiceNo, *Customer, *InvoiceDate, *DueDate, Terms, Location, Memo, Item(Product/Service), ItemDescription, ItemQuantity, ItemRate, *ItemAmount, *ItemTaxCode, ItemTaxAmount, Currency, Service Date`
 - Item = `qbItem` setting; TaxCode = `qbTaxCode` or `No VAT`; ItemAmount = round(qty × rate); ItemTaxAmount = round(amount × 0.2) when VAT; Currency GBP.
 
-## Sage (requested 30 Oct 2026)
-Sage Business Cloud Accounting (UK) alongside Xero and QuickBooks: a CSV export in Sage's sales invoice import format, chosen by `accountsApp = sage`, with Sage-specific settings (nominal code, e.g. 4000 Sales, and tax code, e.g. T1 for 20% / T0 or T9 for no VAT) and the customer matched by account reference or name. The exact column layout must be checked against Sage's current import template before release and covered by a golden-file test like the others. Sage 50 (desktop) uses a different import and is out of scope unless a customer needs it.
+## Sage 50 (CSV today, PR #13)
+Sage 50 audit trail import, chosen by `accountsApp = sage`. One `SI` (sales invoice) row per line. Columns:
+`Type, Account Reference, Nominal A/C Ref, Department Code, Date, Reference, Details, Net Amount, Tax Code, Tax Amount, Exchange Rate, Extra Reference, User Name, Project Refn, Cost Code Refn`
+- Account Reference = client's `sageRef`, else the first 8 letters and digits of the name in capitals (the app warns before exporting with a made-up one). Nominal from `sageNominal` (default 4000). Tax code `sageTaxCode` (T1) when VAT, else `sageNoVatCode` (T9).
+- Details is the line description cut to 60 characters. Net Amount = round(qty × rate); Tax Amount = round(net × 0.2) when VAT. Extra Reference = invoice reference.
+- Sage Business Cloud Accounting uses a different import and isn't supported yet.
 
-All three exports must have golden-file tests in the rebuild: a fixed set of invoices must produce byte-identical CSV to today's output.
+All three exports have golden-file tests (`packages/domain/test/golden/`): a fixed set of invoices must produce byte-identical CSV to today's output.
 
 ## Automatic accounting sync (deferred, planned)
 Lewis wants this later, for Xero, QuickBooks and Sage. Approach: register Intuit, Xero and Sage developer apps; OAuth connect per business from Settings; tokens stored encrypted server-side; an edge function pushes approved invoices and maps clients to contacts; status and errors shown on each invoice. The rebuild's invoice model must have `external_id`, `external_system` and `sync_status` fields from day one so this slots in.

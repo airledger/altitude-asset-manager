@@ -1,0 +1,7 @@
+*InvoiceNo,*Customer,*InvoiceDate,*DueDate,Terms,Location,Memo,Item(Product/Service),ItemDescription,ItemQuantity,ItemRate,*ItemAmount,*ItemTaxCode,ItemTaxAmount,Currency,Service Date
+AC-1001,"Smith & Co, Ltd",30/10/2026,13/11/2026,,,Annual service LS1 4AB,Services,"Annual air conditioning service – Office, Unit 4 LS1 4AB (first indoor unit + outdoor)",1,95.00,95.00,20.0% S,19.00,GBP,
+AC-1001,"Smith & Co, Ltd",30/10/2026,13/11/2026,,,Annual service LS1 4AB,Services,Additional indoor unit serviced,2,45.00,90.00,20.0% S,18.00,GBP,
+AC-1001,"Smith & Co, Ltd",30/10/2026,13/11/2026,,,Annual service LS1 4AB,Services,R32 top-up (kg),0.35,60.00,21.00,20.0% S,4.20,GBP,
+AC-1001,"Smith & Co, Ltd",30/10/2026,13/11/2026,,,Annual service LS1 4AB,Services,"Condensate pump tablets, ""blue""",3,0.34,1.01,20.0% S,0.20,GBP,
+AC-1002,O'Neill Dental Practice,02/11/2026,16/11/2026,,,,Services,"Call-out – Surgery, 1 High St",1,75.00,75.00,No VAT,0.00,GBP,
+AC-1003,"The ""Old"" Mill Café",31/12/2026,14/01/2027,,,"Installation, phase 1",Services,"Supply and installation of air conditioning – Mill, Main Rd (1 outdoor + 3 indoor)",1,7499.99,7500.00,20.0% S,1500.00,GBP,

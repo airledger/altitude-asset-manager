@@ -1,0 +1,73 @@
+{
+  "settings": {
+    "accountCode": "200",
+    "taxType": "20% (VAT on Income)",
+    "trackingName": "Region",
+    "trackingOption": "North",
+    "qbItem": "Services",
+    "qbTaxCode": "20.0% S",
+    "sageNominal": "4000",
+    "sageTaxCode": "T1",
+    "sageNoVatCode": "T9"
+  },
+  "clients": [
+    {
+      "id": "c1",
+      "name": "Smith & Co, Ltd",
+      "email": "accounts@example.invalid",
+      "billingAddress": "Unit 4, Riverside Park\n12 Mill Lane, Leeds",
+      "postcode": "LS1 4AB"
+    },
+    {
+      "id": "c2",
+      "name": "O'Neill Dental",
+      "xeroContactName": "O'Neill Dental Practice",
+      "sageRef": "ONEILL01"
+    },
+    { "id": "c3", "name": "The \"Old\" Mill Café" }
+  ],
+  "invoices": [
+    {
+      "clientId": "c1",
+      "number": "AC-1001",
+      "date": "2026-10-30",
+      "dueDate": "2026-11-13",
+      "reference": "Annual service LS1 4AB",
+      "vat": true,
+      "lines": [
+        {
+          "desc": "Annual air conditioning service – Office, Unit 4 LS1 4AB (first indoor unit + outdoor)",
+          "qty": 1,
+          "unit": 95
+        },
+        { "desc": "Additional indoor unit serviced", "qty": 2, "unit": 45 },
+        { "desc": "R32 top-up (kg)", "qty": 0.35, "unit": 60 },
+        { "desc": "Condensate pump tablets, \"blue\"", "qty": 3, "unit": 0.335 }
+      ]
+    },
+    {
+      "clientId": "c2",
+      "number": "AC-1002",
+      "date": "2026-11-02",
+      "dueDate": "2026-11-16",
+      "reference": "",
+      "vat": false,
+      "lines": [{ "desc": "Call-out – Surgery, 1 High St", "qty": 1, "unit": 75 }]
+    },
+    {
+      "clientId": "c3",
+      "number": "AC-1003",
+      "date": "2026-12-31",
+      "dueDate": "2027-01-14",
+      "reference": "Installation, phase 1",
+      "vat": true,
+      "lines": [
+        {
+          "desc": "Supply and installation of air conditioning – Mill, Main Rd (1 outdoor + 3 indoor)",
+          "qty": 1,
+          "unit": 7499.995
+        }
+      ]
+    }
+  ]
+}

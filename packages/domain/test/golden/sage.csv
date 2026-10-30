@@ -1,0 +1,7 @@
+Type,Account Reference,Nominal A/C Ref,Department Code,Date,Reference,Details,Net Amount,Tax Code,Tax Amount,Exchange Rate,Extra Reference,User Name,Project Refn,Cost Code Refn
+SI,SMITHCOL,4000,,30/10/2026,AC-1001,"Annual air conditioning service – Office, Unit 4 LS1 4AB (fi",95.00,T1,19.00,,Annual service LS1 4AB,,,
+SI,SMITHCOL,4000,,30/10/2026,AC-1001,Additional indoor unit serviced,90.00,T1,18.00,,Annual service LS1 4AB,,,
+SI,SMITHCOL,4000,,30/10/2026,AC-1001,R32 top-up (kg),21.00,T1,4.20,,Annual service LS1 4AB,,,
+SI,SMITHCOL,4000,,30/10/2026,AC-1001,"Condensate pump tablets, ""blue""",1.01,T1,0.20,,Annual service LS1 4AB,,,
+SI,ONEILL01,4000,,02/11/2026,AC-1002,"Call-out – Surgery, 1 High St",75.00,T9,0.00,,,,,
+SI,THEOLDMI,4000,,31/12/2026,AC-1003,"Supply and installation of air conditioning – Mill, Main Rd ",7500.00,T1,1500.00,,"Installation, phase 1",,,
