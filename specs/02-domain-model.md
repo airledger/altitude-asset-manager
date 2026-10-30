@@ -73,6 +73,8 @@ if leakDetection and months: months × 2
 ```
 Next leak check = (last completed job with `leakCheck.performed`, else installDate) + months.
 
+These rules are implemented in `packages/domain` and checked against the live app's own code by `packages/domain/test/same-as-live.test.ts`.
+
 ### Service due
 - Interval = system's `serviceIntervalMonths`, else `defaultInterval`, else 12.
 - Base = date of the last completed job whose type is `Annual service` or `Service + repair`, else installDate.
@@ -84,7 +86,7 @@ Next leak check = (last completed job with `leakCheck.performed`, else installDa
 2. no next due date → **No install date** (grey)
 3. a booked service job exists → **Booked <date>** (green)
 4. days until due > reminderLeadDays → **Due <date>** (grey)
-5. a contact is logged this cycle (on or after the base date, and within 120 days before due): if days since contact ≥ chaseAfterDays → **Chase** (amber, needs action), else **Contacted <date>**
+5. a contact is logged this cycle (on or after the base date, and within 120 days before due): if days since contact ≥ chaseAfterDays → **Chase – contacted Nd ago** (amber, needs action), else **Contacted <date>**
 6. overdue → **Overdue Nd – contact** (red, needs action)
 7. otherwise → **Due in Nd** / **Due today** (amber, needs action)
 

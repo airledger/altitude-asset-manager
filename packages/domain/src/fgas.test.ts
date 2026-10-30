@@ -27,6 +27,12 @@ describe("fgas", () => {
     expect(fgas({ refrigerant: "R410A", factoryChargeKg: 240 }).months).toBe(3);
   });
 
+  it("applies each limit from exactly that amount", () => {
+    expect(fgas({ refrigerant: "Other", gwp: 1000, factoryChargeKg: 50 }).months).toBe(6); // 50 t
+    expect(fgas({ refrigerant: "Other", gwp: 1000, factoryChargeKg: 500 }).months).toBe(3); // 500 t
+    expect(fgas({ refrigerant: "Other", gwp: 1000, factoryChargeKg: 10, hermetic: true }).months).toBe(12); // 10 t
+  });
+
   it("doubles the interval with automatic leak detection", () => {
     expect(fgas({ refrigerant: "R410A", factoryChargeKg: 24, leakDetection: true }).months).toBe(12);
   });

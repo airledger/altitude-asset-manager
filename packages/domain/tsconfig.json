@@ -1,1 +1,6 @@
-{ "extends": "../../tsconfig.base.json", "include": ["src"] }
+{
+  "extends": "../../tsconfig.base.json",
+  // DOM only for Web Crypto and TextEncoder, which Node and browsers both provide.
+  "compilerOptions": { "lib": ["ES2022", "DOM"] },
+  "include": ["src", "test"]
+}
