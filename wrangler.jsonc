@@ -1,0 +1,11 @@
+// Cloudflare Workers config for the beta site (beta.airledger.co.uk).
+// Cloudflare runs `npm run build:beta -w @airledger/web` then `npx wrangler deploy`,
+// which uploads apps/web/dist as static files. No server code.
+{
+  "name": "airledger-beta",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application",
+  },
+}
