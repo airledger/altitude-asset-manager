@@ -1,0 +1,104 @@
+/* Air Ledger brand tokens (specs/00-overview.md, brand book): navy, airflow, Sora / DM Sans. */
+:root {
+  --navy: #0f2238;
+  --air: #3fc1d9;
+  --bg: #f4f7fa;
+  --card: #fff;
+  --ink: #0f2238;
+  --muted: #5b6c7f;
+  --line: #e1e8ef;
+  --red: #c8402f;
+  --amber-l: #fff1da;
+  --r: 12px;
+  --f-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-display: Sora, "DM Sans", system-ui, sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 var(--f-body);
+}
+header.top {
+  background: var(--navy);
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+header.top .logo {
+  height: 30px;
+  width: auto;
+}
+.badge {
+  background: var(--air);
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+  font-size: 13px;
+}
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.banner {
+  background: var(--amber-l);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+}
+.card {
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(15, 34, 56, 0.06);
+}
+.card h1 {
+  font: 600 19px var(--f-display);
+  margin: 0;
+}
+label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+input {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: 15px var(--f-body);
+  min-height: 44px;
+}
+.btn {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font: 500 15px var(--f-body);
+  cursor: pointer;
+}
+.btn.pri {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+.btn:disabled {
+  opacity: 0.6;
+}
+.error {
+  color: var(--red);
+  margin: 0;
+}
+.note {
+  color: var(--muted);
+}

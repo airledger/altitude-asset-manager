@@ -1,0 +1,13 @@
+{
+  "name": "@airledger/domain",
+  "private": true,
+  "type": "module",
+  "description": "Air Ledger business rules (F-gas, due dates, materials, invoice lines). No UI, no network. See specs/02-domain-model.md.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  }
+}
