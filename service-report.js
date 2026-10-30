@@ -270,6 +270,7 @@ window.ServiceReport = (() => {
     <div class="sighd">Engineer signature<span class="sp"></span><button type="button" class="btn sm" id="soEngClr">Clear</button></div>
     <canvas class="sigpad" id="soEngPad"></canvas>
     <div class="fg" style="margin-top:14px"><div class="f"><label>Customer name</label><input type="text" id="soCust" value="${esc(custDefault)}"></div>
+    <div class="f"><label>Customer email (report sent here)</label><input type="email" id="soMail" inputmode="email" autocomplete="off" value="${esc(so.clientEmail||c.email||"")}" placeholder="name@example.com"></div>
     <div class="f cb"><label><input type="checkbox" id="soAbs" ${so.customerAbsent?"checked":""}> Customer not available to sign</label></div>
     <div class="f full" id="soAbsWrap" style="${so.customerAbsent?"":"display:none"}"><label>Reason (shown on the report)</label><input type="text" id="soAbsNote" value="${esc(so.absentNote||"")}" placeholder="e.g. Key holder access, site unattended"></div></div>
     <div id="soCustWrap" style="${so.customerAbsent?"display:none":""}"><div class="sighd">Customer signature<span class="sp"></span><button type="button" class="btn sm" id="soCustClr">Clear</button></div>
@@ -285,14 +286,18 @@ window.ServiceReport = (() => {
         const absent=$("#soAbs",md).checked;
         if(ep.empty){toast("Please sign as the engineer","err");return}
         if(!absent&&cp.empty){toast("Ask the customer to sign, or tick 'not available'","err");return}
+        const mail=$("#soMail",md).value.trim();
+        if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)){toast("Check the customer's email address","err");return}
         const btn=$("#soGo",md); btn.disabled=true; btn.textContent="Building report…";
         try{
           const save=async(p,old)=>{if(!p.dirty&&old)return old;const im=p.png();if(!im)return "";
             if(!assets)return im; const blob=await (await fetch(im.data)).blob(); return (await assets.upload(blob,{type:"image/png"})).id};
           const cert=$("#soCert",md).value.trim(); LS.set("al-eng-cert",cert);
           const signoff={engineerName:$("#soEng",md).value.trim(),engineerCert:cert,engineerSig:await save(ep,so.engineerSig),
-            customerName:$("#soCust",md).value.trim(),customerAbsent:absent,absentNote:absent?$("#soAbsNote",md).value.trim():"",customerSig:absent?"":await save(cp,so.customerSig),
+            customerName:$("#soCust",md).value.trim(),clientEmail:mail,customerAbsent:absent,absentNote:absent?$("#soAbsNote",md).value.trim():"",customerSig:absent?"":await save(cp,so.customerSig),
             signedAt:(!ep.dirty&&!cp.dirty&&so.signedAt)||new Date().toISOString()};
+          // Keep the email on the client record for next time.
+          if(mail&&!c.email&&c.id){const cc=clone(c);cc.email=mail;await put("clients",c.id,cc)}
           await issue(id,signoff);
         }catch(e){toast("Couldn't build the report: "+(e&&(e.message||e.code)||e),"err");btn.disabled=false;btn.textContent="Create report"}
       };
@@ -311,7 +316,7 @@ window.ServiceReport = (() => {
     if(!await put("jobs",id,j)) return;
     closeModal(); toast("Report "+meta.ref+" created");
     const d=draft(job(id),latest(job(id)));
-    if(autoOn()&&pdf&&d.to){
+    if(autoOn()&&pdf&&(d.to||d.cc)){
       try{await emailNow(id,d);toast("Report "+meta.ref+" emailed to "+[d.to,d.cc].filter(Boolean).join(" and "));return}
       catch(e){toast("Couldn't email the report automatically: "+(e.message||e),"err")}
     }
@@ -334,7 +339,7 @@ window.ServiceReport = (() => {
   function draft(j,r){
     const st=set(), s=system(j.systemId)||{}, c=client(s.clientId)||{};
     const what=isInstall(j)?"installation":"service";
-    return {to:c.email||"",cc:st.reportEmail||st.email||"",what,
+    return {to:(j.signoff&&j.signoff.clientEmail)||c.email||"",cc:st.reportEmail||st.email||"",what,
       subject:`${isInstall(j)?"Installation & commissioning":"Service"} report ${r.ref} – ${siteShort(s)}`,
       message:`Hi ${(c.contactName||"").split(" ")[0]||"there"},\n\nPlease find your ${what} report for ${s.name||"your air conditioning"} at ${siteShort(s)}, completed on ${fmtDate(j.date)}. It lists the work carried out on each unit and is signed by our engineer. Please keep it for your records, as it is evidence of servicing for any warranty claim.\n\nReport reference: ${r.ref}\n\nKind regards,\n${(j.signoff&&j.signoff.engineerName)||st.engineer}\n${st.businessName}${st.phone?"\n"+st.phone:""}`};
   }
@@ -343,7 +348,7 @@ window.ServiceReport = (() => {
   async function emailNow(id,d){
     const j=job(id), r=latest(j);
     if(!sb||!r||!r.pdf) throw new Error("The report isn't stored online yet");
-    const {data,error}=await sb.functions.invoke("send-report",{body:{orgId:Biz.org.id,pdf:r.pdf,filename:fileName(j,r),to:[d.to].filter(Boolean),cc:[d.cc].filter(x=>x&&x!==d.to),subject:d.subject,message:d.message,replyTo:set().email}});
+    const {data,error}=await sb.functions.invoke("send-report",{body:{orgId:Biz.org.id,pdf:r.pdf,filename:fileName(j,r),to:[d.to||d.cc].filter(Boolean),cc:d.to?[d.cc].filter(x=>x&&x!==d.to):[],subject:d.subject,message:d.message,replyTo:set().email}});
     if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}
     await logSend(id,"auto",[d.to,d.cc].filter(Boolean));
     return data;
@@ -356,7 +361,7 @@ window.ServiceReport = (() => {
     openModal("Send report "+r.ref,`
     <p class="note" style="margin-top:0">Send the signed PDF to the client as their record of the ${what} and warranty evidence, and copy your office as proof the job was completed.</p>
     <div class="fg"><div class="f"><label>Client email</label><input type="email" id="sdTo" value="${esc(d.to)}" placeholder="client@example.com"></div>
-    <div class="f"><label>Office copy to</label><input type="email" id="sdCc" value="${esc(d.cc)}"><div class="hint">Default set in Settings → Service reports</div></div>
+    <div class="f"><label>Reports sent to</label><input type="email" id="sdCc" value="${esc(d.cc)}"><div class="hint">Default set in Settings → Service reports</div></div>
     <div class="f full"><label>Message</label><textarea id="sdMsg" style="min-height:130px">${esc(d.message)}</textarea></div></div>
     <div class="actions" style="flex-wrap:wrap">
       <button class="btn" id="sdDl">Download PDF</button>
@@ -375,7 +380,7 @@ window.ServiceReport = (() => {
           await logSend(id,"share",[to(),cc()].filter(Boolean)); closeModal(); toast("Report shared");
         }catch(e){if(e&&e.name!=="AbortError")toast("Couldn't share: "+(e.message||e),"err")}};
       if($("#sdSend",md))$("#sdSend",md).onclick=async e=>{
-        if(!to()){toast("Add the client's email","err");return}
+        if(!to()&&!cc()){toast("Add the client's email","err");return}
         e.target.disabled=true;e.target.textContent="Sending…";
         try{await emailNow(id,{to:to(),cc:cc(),subject:subj,message:$("#sdMsg",md).value});closeModal();toast("Report emailed to "+[to(),cc()].filter(Boolean).join(" and "))}
         catch(err){toast("Couldn't send: "+(err.message||err),"err");e.target.disabled=false;e.target.textContent="Send email now"}};

@@ -40,7 +40,7 @@ To turn on: run `supabase-multi-business.sql`, then in Supabase Authentication t
 When a job is completed the app asks the engineer, and the customer if they're there, to sign on screen. It then builds a PDF with the business's logo and details, the client and site, every unit's checks and readings, F-gas details, parts used, photos and both signatures.
 - Each report gets a reference (`SR-YYMMDD-XXXX`, or `CR-` for installs) and a fingerprint of the record. If the job is edited afterwards, the job page says so and the report can be re-issued as a new revision.
 - The PDF is stored with the job's photos. "Send report" shares it from a phone's share sheet, or opens an email to the client with the office copied and a download link that lasts a year.
-- Set the office address in Settings → Service reports.
+- Set the business address that receives every report in Settings → Service reports → "Reports sent to". The engineer types the customer's email on the sign-off screen.
 
 ### Emailing reports automatically (once)
 `supabase/functions/send-report` emails the PDF from reports@airledger.co.uk through Resend, with the client in To, the office in Cc and replies going to the business email.
@@ -49,6 +49,6 @@ When a job is completed the app asks the engineer, and the customer if they're t
 3. Resend → API Keys → Create (sending access) and copy the key.
 4. Supabase → Edge Functions → Secrets: add `RESEND_API_KEY` with that key.
 5. Supabase → Edge Functions → Deploy a new function → Via editor: name it `send-report`, paste `supabase/functions/send-report/index.ts`, and deploy (leave "Verify JWT" on).
-6. In the app: Settings → Service reports → tick "Email reports to the client automatically".
+6. In the app: Settings → Service reports → fill in "Reports sent to" and tick "Email reports automatically when signed".
 
 The function only sends a PDF from the signed-in user's own business folder, to at most 5 addresses.
