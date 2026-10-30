@@ -10,6 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="offline.js"></script>
+<script src="native.js"></script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Air Ledger">
 <meta name="theme-color" content="#0F2238">
@@ -142,7 +144,8 @@ pre.copy{white-space:pre-wrap;background:#f6f8fa;border:1px solid var(--line);bo
 <script>
 "use strict";
 /* ================= constants ================= */
-const APP_URL_DEFAULT = location.origin+location.pathname;
+// The phone app runs from capacitor://localhost, so stickers it prints point at the website instead.
+const APP_URL_DEFAULT = window.AirLedgerNative ? "https://app.airledger.co.uk/" : location.origin+location.pathname;
 const REFRIGERANTS = {"R32":675,"R410A":2088,"R454B":466,"R452B":698,"R290":3,"R407C":1774,"R134a":1430,"R513A":631,"R1234ze":7,"R744":1,"R22":1810};
 const SERVICE_TYPES = ["Annual service","Service + repair"];
 const JOB_TYPES = ["Annual service","Service + repair","Leak check","Repair / breakdown","Installation","Commissioning","Survey"];
@@ -331,34 +334,67 @@ function memDb(){
   return{doc:docRef,collection:colRef,_store:store};
 }
 let sb=null;
-function sbDb(){
+function sbDb(uid){
   const store={}; const subs=[];
+  const OFF=window.AirLedgerOffline;
+  const sync={offline:false,pending:OFF.outbox(uid).length};
   const colOf=p=>p.split("/").slice(0,-1).join("/");
   const split=p=>{const i=p.lastIndexOf("/");return [p.slice(0,i),p.slice(i+1)]};
-  let t=0; function emit(){clearTimeout(t);t=setTimeout(()=>{for(const s of subs)s()},0)}
+  let t=0; function emit(){clearTimeout(t);t=setTimeout(()=>{OFF.saveCache(uid,store);for(const s of subs)s()},0)}
+  // Writes go straight to Supabase; with no signal (or older changes still queued) they wait in the outbox.
+  async function send(op){
+    if(!sync.pending){
+      const {error}=op.kind==="delete"?await sb.from("docs").delete().eq("col",op.col).eq("id",op.id):await sb.from("docs").upsert({col:op.col,id:op.id,data:op.data});
+      if(!error) return;
+      if(!OFF.isNetworkError(error)) throw error;
+    }
+    OFF.queue(uid,op); sync.pending++; sync.offline=!navigator.onLine||sync.offline; flush();
+  }
+  let flushing=null;
+  function flush(){
+    if(flushing||!navigator.onLine) return flushing;
+    flushing=OFF.flush(sb,uid).then(n=>{const was=sync.pending;sync.pending=n;if(was&&!n)toast("Offline changes synced");emit()}).finally(()=>{flushing=null});
+    return flushing;
+  }
   function docRef(path){const [col,id]=split(path);return{id,path,
     async get(){const v=store[path];return{id,exists:!!v,data:()=>v&&clone(v),metadata:{}}},
-    async set(d){const {error}=await sb.from("docs").upsert({col,id,data:d});if(error)throw error;store[path]=clone(d);emit()},
+    async set(d){await send({kind:"set",col,id,data:d});store[path]=clone(d);emit()},
     async update(d){if(!store[path])throw{code:"invalid_argument"};return this.set(Object.assign(clone(store[path]),d))},
-    async delete(){const {error}=await sb.from("docs").delete().eq("col",col).eq("id",id);if(error)throw error;delete store[path];emit()},
+    async delete(){await send({kind:"delete",col,id});delete store[path];emit()},
     onSnapshot(cb){const f=()=>{const v=store[path];cb({id,exists:!!v,data:()=>v&&clone(v),metadata:{}})};subs.push(f);setTimeout(f,0);return()=>{}}}}
   function colRef(path){return{path,doc:(id)=>docRef(path+"/"+(id||rid(20))),
     onSnapshot(cb){const f=()=>{const docs=Object.keys(store).filter(k=>colOf(k)===path).map(k=>({id:k.split("/").pop(),exists:true,data:()=>clone(store[k]),metadata:{}}));cb({docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{}})};subs.push(f);setTimeout(f,0);return()=>{}},
     async get(){return{docs:Object.keys(store).filter(k=>colOf(k)===path).map(k=>({id:k.split("/").pop(),exists:true,data:()=>clone(store[k])}))}}}}
-  async function load(){
+  async function fetchAll(){
+    const fresh={};
     for(let from=0;;from+=1000){
       const {data,error}=await sb.from("docs").select("col,id,data").range(from,from+999);
       if(error)throw error;
-      for(const r of data)store[r.col+"/"+r.id]=r.data;
+      for(const r of data)fresh[r.col+"/"+r.id]=r.data;
       if(data.length<1000)break;
     }
+    OFF.applyOutbox(uid,fresh);
+    for(const k of Object.keys(store))delete store[k];
+    Object.assign(store,fresh);
+  }
+  async function load(){
+    try{await fetchAll()}
+    catch(e){
+      const cached=OFF.loadCache(uid);
+      if(!cached||!OFF.isNetworkError(e))throw e;
+      Object.assign(store,cached); OFF.applyOutbox(uid,store); sync.offline=true;
+    }
+    if(!sync.offline){OFF.saveCache(uid,store);flush()}
     sb.channel("docs").on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{
       if(p.eventType==="DELETE"){const o=p.old||{};if(o.col)delete store[o.col+"/"+o.id]}
       else{const n=p.new;store[n.col+"/"+n.id]=n.data}
       emit();
     }).subscribe();
+    // Back online: send queued changes, then catch up on anything changed elsewhere meanwhile.
+    window.addEventListener("online",async()=>{try{await flush();await fetchAll();sync.offline=false;emit()}catch(e){}});
+    window.addEventListener("offline",()=>{sync.offline=true;schedule()});
   }
-  return{doc:docRef,collection:colRef,load,_store:store};
+  return{doc:docRef,collection:colRef,load,syncState:()=>sync,_store:store};
 }
 const sbAssets={
   async upload(blob,{type}){const id=rid(20)+"."+(type.split("/")[1]||"jpg");const {error}=await sb.storage.from("photos").upload(id,blob,{contentType:type});if(error)throw error;return{id,url:URL.createObjectURL(blob)}},
@@ -388,7 +424,11 @@ async function restoreBackup(){
   };
   inp.click();
 }
-async function signOut(){await sb.auth.signOut();location.reload()}
+async function signOut(){
+  const st=db&&db.syncState&&db.syncState();
+  if(st&&st.pending&&!await confirmBox(st.pending+" change(s) made offline haven't synced yet and will be lost if you sign out. Sign out anyway?"))return;
+  await sb.auth.signOut();window.AirLedgerOffline.clear();location.reload()
+}
 function loginScreen(msg){
   $("#nav").innerHTML="";
   $("#app").innerHTML=`<div class="card" style="max-width:420px;margin:40px auto"><h2>Sign in</h2>${msg?`<p class="note" style="color:var(--red)">${esc(msg)}</p>`:""}
@@ -441,9 +481,12 @@ function render(){
     else html=({dashboard:viewDashboard,clients:viewClients,assets:viewAssets,jobs:viewJobs,orders:viewOrders,invoices:viewInvoices,materials:viewMaterials,settings:viewSettings}[r]||viewDashboard)();
   }catch(e){console.error(e);html='<div class="card">Something went wrong showing this page: '+esc(e.message)+'</div>'}
   const banners=[];
+  const sync=db&&db.syncState&&db.syncState();
+  if(sync&&(sync.offline||sync.pending)) banners.push('<div class="banner"><b>'+(sync.offline?"Offline":"Syncing")+':</b> '+(sync.offline?"showing your last synced records. ":"")+(sync.pending?sync.pending+" change"+(sync.pending===1?"":"s")+" will sync when you're back online.":"New changes will be saved when you're back online.")+'</div>');
   if(memoryMode) banners.push('<div class="banner"><b>Not connected:</b> add your Supabase details to config.js. Nothing is being saved.</div>');
   else if(!appUrl()) banners.push('<div class="banner">Set the <b>App link</b> in <a href="#settings">Settings</a> so QR labels open assets directly.</div>');
   $("#app").innerHTML=banners.join("")+html;
+  if(window.AirLedgerNative)AirLedgerNative.afterRender();
   if(aeId){const el=document.getElementById(aeId);if(el){el.focus();try{el.setSelectionRange(selS,selS)}catch(e){}}}
 }
 window.addEventListener("hashchange",()=>{window.scrollTo(0,0);render()});
@@ -770,7 +813,8 @@ function viewSettings(){
   const st=set();
   return `<h1 class="pg">Settings</h1><div class="sub">Pricing, reminders and Xero details</div>
   <div class="card" id="setForm">${formHTML(SETTINGS_FIELDS,st)}<div class="actions"><button class="btn pri" onclick="saveSettingsForm()">Save settings</button></div></div>
-  <div class="card"><h2>Backup & records</h2><div class="row"><button class="btn" onclick="backup()">Download full backup (JSON)</button><button class="btn" onclick="restoreBackup()">Restore from backup</button><button class="btn" onclick="signOut()">Sign out</button><button class="btn" onclick="exportFgas()">F-gas register (CSV)</button></div><p class="note">Keep F-gas records for at least 5 years.</p></div>`;
+  <div class="card"><h2>Backup & records</h2><div class="row"><button class="btn" onclick="backup()">Download full backup (JSON)</button><button class="btn" onclick="restoreBackup()">Restore from backup</button><button class="btn" onclick="signOut()">Sign out</button><button class="btn" onclick="exportFgas()">F-gas register (CSV)</button></div><p class="note">Keep F-gas records for at least 5 years.</p></div>
+  <div class="card"><h2>Help & privacy</h2><div class="row"><a class="btn" href="https://app.airledger.co.uk/support.html" target="_blank" rel="noopener">Support</a><a class="btn" href="https://app.airledger.co.uk/privacy.html" target="_blank" rel="noopener">Privacy policy</a></div></div>`;
 }
 async function saveSettingsForm(){const v=readForm($("#setForm"),SETTINGS_FIELDS);if(await saveSettings(v))toast("Settings saved")}
 
@@ -1238,7 +1282,7 @@ function viewRegister(id){
   ${S.systems.length>6?`<div class="sec">Or choose any system</div><div class="row"><select id="regSys" class="search" style="margin:0;flex:1">${S.systems.map(s=>`<option value="${s.id}">${esc((client(s.clientId)||{}).name||"—")} · ${esc(s.name)}</option>`).join("")}</select><button class="btn" onclick="editUnit(null,$('#regSys').value,null,'${id}')">Add</button></div>`:""}
   <div class="actions" style="justify-content:flex-start"><button class="btn" onclick="editSystem(null,{},'${id}')">+ It's a new install</button></div></div>`;
 }
-function scanToAdd(sid){scanMode={add:sid};$("#scanFile").click()}
+function scanToAdd(sid){scanMode={add:sid};openScanner()}
 async function decodePhoto(f){
   if(typeof window.jsQR!=="function") throw new Error("QR reader didn't load – type the ID instead");
   const bmp=await createImageBitmap(f);
@@ -1349,20 +1393,30 @@ async function exportFgas(){
 async function backup(){await saveFile("airledger-backup-"+todayISO()+".json",JSON.stringify({exported:new Date().toISOString(),...S},null,2))}
 
 /* ================= scanning ================= */
-$("#scanBtn").onclick=()=>openModal("Scan a unit",`<p style="margin-top:0">Take a photo of the QR label and the unit opens.</p>
-  <div class="actions" style="justify-content:stretch"><button class="btn pri" style="flex:1;justify-content:center;padding:14px" id="takePic">📷 Take photo of QR code</button></div>
+$("#scanBtn").onclick=()=>openModal("Scan a unit",`<p style="margin-top:0">${window.AirLedgerNative?"Point the camera at the QR label and the unit opens.":"Take a photo of the QR label and the unit opens."}</p>
+  <div class="actions" style="justify-content:stretch"><button class="btn pri" style="flex:1;justify-content:center;padding:14px" id="takePic">${window.AirLedgerNative?"📷 Scan QR code":"📷 Take photo of QR code"}</button></div>
   <div class="sec">Or type the ID</div><div class="row"><input class="search" style="margin:0;flex:1" id="manId" placeholder="AC-XXXXX" autocapitalize="characters"><button class="btn" id="manGo">Open</button></div>
-  <p class="note">Tip: your phone's own camera app works too – point it at a label and tap the link.</p>`,md=>{
-  $("#takePic",md).onclick=()=>$("#scanFile").click();
+  ${window.AirLedgerNative?"":`<p class="note">Tip: your phone's own camera app works too – point it at a label and tap the link.</p>`}`,md=>{
+  $("#takePic",md).onclick=openScanner;
   const go=()=>{const id=parseScan($("#manId",md).value)||$("#manId",md).value.trim().toUpperCase();if(unit(id)||STICKER_RE.test(id)){closeModal();location.hash="u-"+id}else toast("That isn't a valid asset ID","err")};
   $("#manGo",md).onclick=go; $("#manId",md).onkeydown=e=>{if(e.key==="Enter")go()};
 });
+// The phone app scans live with the native camera; the website photographs the label and decodes it.
+async function openScanner(){
+  if(!window.AirLedgerNative){$("#scanFile").click();return}
+  const mode=scanMode; scanMode=null; let data=null;
+  try{data=await AirLedgerNative.scanQR()}catch(err){toast("Scanner problem: "+(err&&(err.message||err.code)||err),"err");return}
+  if(data) handleScan(data,mode);
+}
 $("#scanFile").onchange=async e=>{
   const f=e.target.files&&e.target.files[0]; e.target.value=""; const mode=scanMode; scanMode=null; if(!f) return;
   toast("Reading QR code…");
   let data=null;
   try{data=await decodePhoto(f)}catch(err){toast(err.message||"Couldn't read that photo","err");return}
   if(!data){toast("Couldn't find a QR code – try again closer and in focus","err");return}
+  handleScan(data,mode);
+};
+function handleScan(data,mode){
   const id=parseScan(data);
   if(!id||!STICKER_RE.test(id)){toast("That QR code isn't an Air Ledger sticker","err");return}
   closeModal();
@@ -1371,18 +1425,18 @@ $("#scanFile").onchange=async e=>{
     editUnit(null,mode.add,null,id); return;
   }
   location.hash="u-"+id; toast(unit(id)?"Opened "+id:"New sticker "+id+" – add it to an install");
-};
+}
 
 /* ================= boot ================= */
 (async()=>{
   let realDb=null;
   const cfg=window.APP_CONFIG||{};
-  downloads=sbDownloads;
+  downloads=(window.AirLedgerNative&&AirLedgerNative.downloads)||sbDownloads;
   if(cfg.supabaseUrl&&cfg.supabaseAnonKey&&window.supabase){
     sb=supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true}});
     const {data:{session}}=await sb.auth.getSession();
     if(!session){loginScreen();return}
-    realDb=sbDb();
+    realDb=sbDb(session.user.id);
     try{await realDb.load()}catch(e){loginScreen("Couldn't load your data: "+(e.message||e));return}
     assets=sbAssets;
   }

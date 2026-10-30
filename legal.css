@@ -1,0 +1,17 @@
+/* Shared styles for the privacy policy and support pages */
+:root{--navy:#0F2238;--air:#3FC1D9;--ink-link:#1597B0;--muted:#5B6C7F;--bg:#F4F7FA;--line:#E1E8EF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--navy);font:16px/1.6 "DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--navy);padding:18px 16px;padding-top:calc(18px + env(safe-area-inset-top))}
+header img{height:30px;display:block}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1,h2{font-family:Sora,"DM Sans",system-ui,sans-serif;line-height:1.25}
+h1{font-size:28px;margin:8px 0 4px}h2{font-size:19px;margin:32px 0 8px}
+.sub{color:var(--muted);margin:0 0 24px}
+a{color:var(--ink-link)}
+table{width:100%;border-collapse:collapse;font-size:15px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{background:#E8F5F8;font-weight:600}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:16px 0}
+.todo{background:#FFF1DA;border-radius:4px;padding:0 4px}
+footer{color:var(--muted);font-size:14px;border-top:1px solid var(--line);margin-top:40px;padding-top:16px}
