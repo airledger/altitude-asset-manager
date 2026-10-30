@@ -310,6 +310,11 @@ window.ServiceReport = (() => {
     j.serviceReports=(j.serviceReports||[]).concat([{ref:meta.ref,rev:meta.rev,issuedAt:meta.issuedAt,hash:meta.hash,pdf,sent:[]}]);
     if(!await put("jobs",id,j)) return;
     closeModal(); toast("Report "+meta.ref+" created");
+    const d=draft(job(id),latest(job(id)));
+    if(autoOn()&&pdf&&d.to){
+      try{await emailNow(id,d);toast("Report "+meta.ref+" emailed to "+[d.to,d.cc].filter(Boolean).join(" and "));return}
+      catch(e){toast("Couldn't email the report automatically: "+(e.message||e),"err")}
+    }
     send(id,blob);
   }
 
@@ -325,23 +330,38 @@ window.ServiceReport = (() => {
     const j=clone(job(id)), r=latest(j); if(!r) return;
     r.sent=(r.sent||[]).concat([{via,to,at:new Date().toISOString()}]); await put("jobs",id,j);
   }
+  // Recipients, subject and message for a report email.
+  function draft(j,r){
+    const st=set(), s=system(j.systemId)||{}, c=client(s.clientId)||{};
+    const what=isInstall(j)?"installation":"service";
+    return {to:c.email||"",cc:st.reportEmail||st.email||"",what,
+      subject:`${isInstall(j)?"Installation & commissioning":"Service"} report ${r.ref} – ${siteShort(s)}`,
+      message:`Hi ${(c.contactName||"").split(" ")[0]||"there"},\n\nPlease find your ${what} report for ${s.name||"your air conditioning"} at ${siteShort(s)}, completed on ${fmtDate(j.date)}. It lists the work carried out on each unit and is signed by our engineer. Please keep it for your records, as it is evidence of servicing for any warranty claim.\n\nReport reference: ${r.ref}\n\nKind regards,\n${(j.signoff&&j.signoff.engineerName)||st.engineer}\n${st.businessName}${st.phone?"\n"+st.phone:""}`};
+  }
+  const autoOn=()=>!!(set().autoEmailReports&&sb);
+  // Sends through the send-report Supabase function (Resend), with the PDF attached.
+  async function emailNow(id,d){
+    const j=job(id), r=latest(j);
+    if(!sb||!r||!r.pdf) throw new Error("The report isn't stored online yet");
+    const {data,error}=await sb.functions.invoke("send-report",{body:{orgId:Biz.org.id,pdf:r.pdf,filename:fileName(j,r),to:[d.to].filter(Boolean),cc:[d.cc].filter(x=>x&&x!==d.to),subject:d.subject,message:d.message,replyTo:set().email}});
+    if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}throw new Error(m)}
+    await logSend(id,"auto",[d.to,d.cc].filter(Boolean));
+    return data;
+  }
   function send(id,blobIn){
     const j=job(id), r=latest(j); if(!j||!r) return;
-    const st=set(), s=system(j.systemId)||{}, c=client(s.clientId)||{};
-    const office=st.reportEmail||st.email||"";
-    const what=isInstall(j)?"installation":"service";
-    const subj=`${isInstall(j)?"Installation & commissioning":"Service"} report ${r.ref} – ${siteShort(s)}`;
+    const d=draft(j,r), what=d.what, subj=d.subject;
     let blob=blobIn||null;
     const getBlob=async()=>blob||(blob=await pdfBlob(r));
     openModal("Send report "+r.ref,`
     <p class="note" style="margin-top:0">Send the signed PDF to the client as their record of the ${what} and warranty evidence, and copy your office as proof the job was completed.</p>
-    <div class="fg"><div class="f"><label>Client email</label><input type="email" id="sdTo" value="${esc(c.email||"")}" placeholder="client@example.com"></div>
-    <div class="f"><label>Office copy to</label><input type="email" id="sdCc" value="${esc(office)}"><div class="hint">Default set in Settings → Service reports</div></div>
-    <div class="f full"><label>Message</label><textarea id="sdMsg" style="min-height:130px">${esc(`Hi ${(c.contactName||"").split(" ")[0]||"there"},\n\nPlease find your ${what} report for ${s.name||"your air conditioning"} at ${siteShort(s)}, completed on ${fmtDate(j.date)}. It lists the work carried out on each unit and is signed by our engineer. Please keep it for your records, as it is evidence of servicing for any warranty claim.\n\nReport reference: ${r.ref}\n\nKind regards,\n${(j.signoff&&j.signoff.engineerName)||st.engineer}\n${st.businessName}${st.phone?"\n"+st.phone:""}`)}</textarea></div></div>
+    <div class="fg"><div class="f"><label>Client email</label><input type="email" id="sdTo" value="${esc(d.to)}" placeholder="client@example.com"></div>
+    <div class="f"><label>Office copy to</label><input type="email" id="sdCc" value="${esc(d.cc)}"><div class="hint">Default set in Settings → Service reports</div></div>
+    <div class="f full"><label>Message</label><textarea id="sdMsg" style="min-height:130px">${esc(d.message)}</textarea></div></div>
     <div class="actions" style="flex-wrap:wrap">
       <button class="btn" id="sdDl">Download PDF</button>
       ${navigator.canShare?'<button class="btn" id="sdShare">Share PDF…</button>':""}
-      <button class="btn pri" id="sdMail">Email client & office</button></div>
+      ${autoOn()?'<button class="btn" id="sdMail">Open in Mail</button><button class="btn pri" id="sdSend">Send email now</button>':'<button class="btn pri" id="sdMail">Email client & office</button>'}</div>
     <p class="note" id="sdHint">On a phone, <b>Share PDF</b> attaches the report to a new email. <b>Email</b> opens your mail app with a secure link to the PDF that works for ${LINK_DAYS} days.</p>`,md=>{
       const to=()=>$("#sdTo",md).value.trim(), cc=()=>$("#sdCc",md).value.trim();
       // Fetch the PDF and the link up front: phones only allow sharing straight after a tap.
@@ -354,6 +374,11 @@ window.ServiceReport = (() => {
           await navigator.share({files:[f],title:subj,text:$("#sdMsg",md).value});
           await logSend(id,"share",[to(),cc()].filter(Boolean)); closeModal(); toast("Report shared");
         }catch(e){if(e&&e.name!=="AbortError")toast("Couldn't share: "+(e.message||e),"err")}};
+      if($("#sdSend",md))$("#sdSend",md).onclick=async e=>{
+        if(!to()){toast("Add the client's email","err");return}
+        e.target.disabled=true;e.target.textContent="Sending…";
+        try{await emailNow(id,{to:to(),cc:cc(),subject:subj,message:$("#sdMsg",md).value});closeModal();toast("Report emailed to "+[to(),cc()].filter(Boolean).join(" and "))}
+        catch(err){toast("Couldn't send: "+(err.message||err),"err");e.target.disabled=false;e.target.textContent="Send email now"}};
       $("#sdMail",md).onclick=async()=>{
         if(!to()&&!cc()){toast("Add the client's email or an office email","err");return}
         const body=$("#sdMsg",md).value+(link?`\n\nDownload the report (PDF):\n${link}`:"");
@@ -376,7 +401,7 @@ window.ServiceReport = (() => {
     return `<div class="card"><h2>Service report <span class="pill green">${esc(r.ref)}${r.rev>1?" rev "+r.rev:""}</span><span id="srChk-${esc(j.id)}"></span></h2>
       <dl class="kv"><dt>Issued</dt><dd>${esc(new Date(r.issuedAt).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}))}</dd>
       <dt>Signed by</dt><dd>${esc(so.engineerName||"")}${so.customerAbsent?" · customer not available":so.customerName?" and "+esc(so.customerName):""}</dd>
-      <dt>Sent</dt><dd>${sent.length?sent.map(x=>`${esc((x.to||[]).join(", ")||"—")} <span class="note">by ${x.via==="share"?"share":"email"}, ${esc(new Date(x.at).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}))}</span>`).join("<br>"):"Not yet"}</dd></dl>
+      <dt>Sent</dt><dd>${sent.length?sent.map(x=>`${esc((x.to||[]).join(", ")||"—")} <span class="note">${x.via==="share"?"shared":x.via==="auto"?"emailed":"by email"}, ${esc(new Date(x.at).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}))}</span>`).join("<br>"):"Not yet"}</dd></dl>
       <div class="row" style="margin-top:10px"><button class="btn pri" onclick="ServiceReport.send('${j.id}')">Send report</button>${r.pdf?`<button class="btn" onclick="ServiceReport.download('${j.id}')">📄 Download PDF</button>`:""}<button class="btn" onclick="ServiceReport.signOff('${j.id}')">Re-issue</button></div></div>`;
   }
   function open(id){const j=job(id);if(j&&latest(j))send(id);else signOff(id)}

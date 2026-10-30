@@ -750,6 +750,7 @@ const SETTINGS_FIELDS=[
   {k:"appUrl",label:"App link (for QR codes)",full:true,hint:"This app's web address. QR labels open it at the scanned unit. Leave blank to use the current address."},
   {sec:"Service reports"},
   {k:"reportEmail",label:"Office copy of service reports to",type:"email",hint:"Every signed report is copied here as proof the job was done. Leave blank to use the business email"},
+  {k:"autoEmailReports",label:"Email reports to the client automatically",type:"checkbox",hint:"Sends the signed PDF from reports@airledger.co.uk as soon as it's created. Needs the email set-up in the README"},
   {sec:"Service reminders"},
   {k:"defaultInterval",label:"Default service interval (months)",type:"number"},
   {k:"reminderLeadDays",label:"Start reminding (days before due)",type:"number"},
