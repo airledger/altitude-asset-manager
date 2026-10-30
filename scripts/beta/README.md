@@ -8,6 +8,7 @@ with a copy of the live app's records and logins:
    numbers for dummies (`client-<id>@example.invalid`, `07700 900xxx`) and turns off automatic report emails.
 3. If "demo" is ticked (the default), `demo-data.sql` adds made-up clients, installs, units, materials and jobs
    (ids starting `demo-` and stickers `AC-DMZ…`), dated relative to today so the dashboard has something to show.
+   `demo-tables.sql` then copies them into the rebuild's typed tables, with made-up prices.
 4. The copied files are deleted from the runner.
 
 People sign in to beta with the same email and password as the live app. Photos and report PDFs aren't

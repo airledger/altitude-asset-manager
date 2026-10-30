@@ -70,7 +70,12 @@ jobs:
         if: inputs.demo
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
-        run: psql "$BETA_URL" -X -v ON_ERROR_STOP=1 -f scripts/beta/demo-data.sql
+        run: |
+          psql "$BETA_URL" -X -v ON_ERROR_STOP=1 -f scripts/beta/demo-data.sql
+          # Also into the rebuild's typed tables, once their migration has reached beta.
+          if [ "$(psql "$BETA_URL" -X -Atc "select to_regclass('public.clients') is not null")" = t ]; then
+            psql "$BETA_URL" -X -v ON_ERROR_STOP=1 -f scripts/beta/demo-tables.sql
+          fi
       - name: Delete the copied files
         if: always()
         run: rm -rf "$RUNNER_TEMP/copy"

@@ -32,3 +32,5 @@ jobs:
       # Starts a local Postgres with Supabase's auth and storage schemas and applies every migration in order;
       # fails if any migration errors.
       - run: supabase db start
+      # Permission tests (pgTAP) in supabase/tests.
+      - run: supabase test db
