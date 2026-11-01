@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 import { DEFAULT_DESIGN, layoutSticker, readDesign, STICKER_SIZES, type StickerSize } from "../sticker";
-import { stickerPdf } from "../stickerPdf";
+import { a4Grid, stickerPdf } from "../stickerPdf";
 import { fakeSupabase } from "../test/fakeSupabase";
 
 const lewis = { id: "u-lewis", email: "lewis@a.test" };
@@ -65,12 +65,23 @@ describe("sticker artwork", () => {
     expect(readDesign({ size: "40round" }).size).toBe("40round");
   });
 
+  it("fits labels with their bleed onto A4 sheets", async () => {
+    expect(a4Grid({ ...DEFAULT_DESIGN, size: "63x38" }).perSheet).toBe(16);
+    expect(a4Grid({ ...DEFAULT_DESIGN, size: "50round" }).perSheet).toBe(15);
+    const codes = Array.from({ length: 20 }, (_, i) => `AC-${String(i).padStart(5, "2")}`);
+    const text = await (
+      await stickerPdf(DEFAULT_DESIGN, brand, codes, (c) => `https://x/u/${c}`, "a4")
+    ).text();
+    expect(text.match(/\/Type \/Page\b/g)).toHaveLength(2);
+  });
+
   it("makes a print-ready PDF with one page per code", async () => {
     const blob = await stickerPdf(
       DEFAULT_DESIGN,
       brand,
       ["AC-7KQ2M", "AC-9XYZ2", "AC-3HXP9"],
       (c) => `https://x/u/${c}`,
+      "single",
     );
     const text = await blob.text();
     expect(text.startsWith("%PDF-")).toBe(true);
