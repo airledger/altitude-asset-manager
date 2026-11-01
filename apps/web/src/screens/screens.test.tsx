@@ -134,6 +134,13 @@ describe("signed in", () => {
 });
 
 describe("link params", () => {
+  it("opens a sticker's /u/ link on the unit page", () => {
+    window.history.replaceState(null, "", "/u/ac-7kq2m");
+    readLinkParams();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.hash).toBe("#/u/AC-7KQ2M");
+  });
+
   it("remembers ?invite= and ?b= and tidies the address", () => {
     window.history.replaceState(null, "", "/?invite=abc123&b=Business-A");
     readLinkParams();

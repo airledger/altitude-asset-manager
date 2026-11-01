@@ -130,8 +130,8 @@ select ok((select bool_and(code ~ '^AC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$') 
   'sticker codes use the unambiguous alphabet');
 select throws_ok($$select public.reserve_stickers('b0000000-0000-0000-0000-000000000000', 1)$$, '42501', null,
   'engineer can''t reserve stickers for business B');
-select throws_ok($$select public.reserve_stickers('a0000000-0000-0000-0000-000000000000', 500)$$, 'P0001', null,
-  'at most 210 stickers at a time');
+select throws_ok($$select public.reserve_stickers('a0000000-0000-0000-0000-000000000000', 5001)$$, 'P0001', null,
+  'at most 5,000 stickers at a time');
 reset role;
 
 -- ---------- data that can't be linked across businesses ----------
