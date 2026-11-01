@@ -21,14 +21,9 @@ import {
   type UnitRow,
 } from "../assets";
 import { Area, Check, Pick, readForm, Text } from "../fields";
-import {
-  labelSheetHtml,
-  openPrintWindow,
-  stickerOrderCsv,
-  stickerSheetHtml,
-  type PrintBrand,
-} from "../print";
-import { decodePhoto } from "../scan";
+import { labelSheetHtml, openPrintWindow, type PrintBrand } from "../print";
+import { Icon } from "../icons";
+import { Empty, initials, Loading, PageHead } from "../ui";
 import { SiteRecords } from "./SiteRecords";
 import { ErrorLine, useAction } from "../useAction";
 
@@ -57,159 +52,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   return { value, error, reload: () => setN((x) => x + 1) };
 }
 
-// ---------- scan / type a sticker ----------
-
-export function ScanBox() {
-  const [error, setError] = useState("");
-  const [reading, setReading] = useState(false);
-  async function photo(file: File | undefined) {
-    if (!file) return;
-    setReading(true);
-    setError("");
-    try {
-      const code = parseScan(await decodePhoto(file));
-      if (code) go(`#/u/${code}`);
-      else
-        setError(
-          "Couldn't read a sticker in that photo. Get closer so the QR code fills the picture, or type the code.",
-        );
-    } catch {
-      setError("Couldn't read that photo. Type the code instead.");
-    } finally {
-      setReading(false);
-    }
-  }
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const code = parseScan(String(new FormData(e.currentTarget).get("code") ?? ""));
-    if (!code) return setError("That doesn't look like a sticker code. They look like AC-7KQ2M.");
-    setError("");
-    go(`#/u/${code}`);
-  }
-  return (
-    <form className="card" onSubmit={submit}>
-      <h1>Find a unit</h1>
-      <ErrorLine error={error} />
-      <label className="btn pri wide">
-        {reading ? "Reading…" : "Scan a sticker"}
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          aria-label="Photo of a sticker"
-          onChange={(e) => void photo(e.currentTarget.files?.[0])}
-        />
-      </label>
-      <label>
-        Sticker code or link
-        <input name="code" placeholder="AC-XXXXX" autoCapitalize="characters" required />
-      </label>
-      <button className="btn" type="submit">
-        Open unit
-      </button>
-    </form>
-  );
-}
-
-/** Blank stickers: codes are reserved on the server first, so no two sheets ever share a code. */
-export function BlankStickers({ assets, businessName }: { assets: Assets; businessName: string }) {
-  const [sheets, setSheets] = useState(1);
-  const { busy, error, run } = useAction();
-  function print() {
-    const win = openPrintWindow();
-    void run(async () => {
-      try {
-        const [codes, brand] = await Promise.all([
-          assets.reserveStickers(sheets * 21),
-          brandFor(assets, businessName),
-        ]);
-        win.show(stickerSheetHtml(codes, brand));
-      } catch (e) {
-        win.close();
-        throw e;
-      }
-    });
-  }
-  return (
-    <section className="card">
-      <h1>Blank stickers</h1>
-      <p className="note">
-        Each sticker gets its own code. Stick one on every unit you fit, then scan it to add the unit. Prints
-        on A4 sheets of 21 (Avery L7160, 63.5 × 38.1 mm); use weatherproof labels outdoors.
-      </p>
-      <ErrorLine error={error} />
-      <div className="row">
-        <label>
-          Sheets
-          <select value={sheets} onChange={(e) => setSheets(Number(e.currentTarget.value))}>
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n} ({n * 21} stickers)
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="btn pri" onClick={print} disabled={busy}>
-          {busy ? "Preparing…" : "Print stickers"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-/** Owner only: reserve codes in bulk and download them for a print company making durable stickers. */
-export function OrderStickers({ assets }: { assets: Assets }) {
-  const [count, setCount] = useState(500);
-  const [done, setDone] = useState("");
-  const { busy, error, setError, run } = useAction();
-  function order() {
-    if (!Number.isInteger(count) || count < 1 || count > 5000)
-      return setError("Choose between 1 and 5,000 stickers.");
-    setDone("");
-    void run(async () => {
-      const [codes, settings] = await Promise.all([assets.reserveStickers(count), assets.ruleSettings()]);
-      const csv = stickerOrderCsv(codes, settings?.app_url || "https://app.airledger.co.uk");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      a.download = `air-ledger-sticker-codes-${todayIso()}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setDone(
-        `${codes.length} codes reserved for your business and downloaded. Send the file to your sticker printer.`,
-      );
-    });
-  }
-  return (
-    <section className="card">
-      <h1>Order stickers from a printer</h1>
-      <p className="note">
-        For durable outdoor stickers made by a print company. Air Ledger reserves the codes for your business
-        and gives you a spreadsheet of codes and QR links to send them. Each code works once, in your business
-        only.
-      </p>
-      <ErrorLine error={error} />
-      {done && <p className="ok">{done}</p>}
-      <div className="row">
-        <label>
-          How many
-          <input
-            type="number"
-            min={1}
-            max={5000}
-            value={count}
-            onChange={(e) => setCount(Number(e.currentTarget.value))}
-          />
-        </label>
-        <button className="btn pri" onClick={order} disabled={busy}>
-          {busy ? "Reserving…" : "Reserve and download"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-async function brandFor(assets: Assets, businessName: string): Promise<PrintBrand> {
+export async function brandFor(assets: Assets, businessName: string): Promise<PrintBrand> {
   const s = await assets.ruleSettings();
   return { businessName, phone: s?.phone ?? "", appUrl: s?.app_url ?? "" };
 }
@@ -225,41 +68,55 @@ export function ClientList({ assets }: { assets: Assets }) {
       !needle || [c.name, c.contact_name, c.postcode, c.email].some((v) => v.toLowerCase().includes(needle)),
   );
   return (
-    <section className="card">
-      <div className="row spread">
-        <h1>Clients</h1>
+    <>
+      <PageHead title="Clients" sub={clients ? plural(clients.length, "client") : " "}>
         <a className="btn pri" href="#/client/new">
+          <Icon name="plus" size={18} />
           Add client
         </a>
-      </div>
-      <ErrorLine error={error} />
-      <input
-        type="search"
-        aria-label="Search clients"
-        placeholder="Search name, contact or postcode"
-        value={q}
-        onChange={(e) => setQ(e.currentTarget.value)}
-      />
-      {!clients ? (
-        <p className="note">Loading…</p>
-      ) : shown.length === 0 ? (
-        <p className="note">{clients.length ? "No clients match." : "No clients yet. Add your first one."}</p>
-      ) : (
-        <ul className="list">
-          {shown.map((c) => (
-            <li key={c.id}>
-              <a href={`#/client/${c.id}`} className="item">
-                <b>{c.name}</b>
-                <span className="note">
-                  {[c.postcode, plural(c.systems[0]?.count ?? 0, "install")].filter(Boolean).join(" · ")}
-                  {c.on_service_plan && " · Service plan"}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      </PageHead>
+      <section className="card">
+        <ErrorLine error={error} />
+        <input
+          type="search"
+          className="search"
+          aria-label="Search clients"
+          placeholder="Search name, contact or postcode"
+          value={q}
+          onChange={(e) => setQ(e.currentTarget.value)}
+        />
+        {!clients ? (
+          <Loading />
+        ) : shown.length === 0 ? (
+          clients.length ? (
+            <Empty icon="clients" title="No clients match" />
+          ) : (
+            <Empty icon="clients" title="No clients yet">
+              Add your first client, then their installs and units.
+            </Empty>
+          )
+        ) : (
+          <ul className="rows">
+            {shown.map((c) => (
+              <li key={c.id}>
+                <a href={`#/client/${c.id}`} className="item">
+                  <span className="avatar">{initials(c.name)}</span>
+                  <span className="main">
+                    <span className="t">{c.name}</span>
+                    <span className="m">
+                      {[c.postcode, plural(c.systems[0]?.count ?? 0, "install")].filter(Boolean).join(" · ")}
+                      {c.on_service_plan && " · Service plan"}
+                    </span>
+                  </span>
+                  {c.on_service_plan && <span className="pill green">Plan</span>}
+                  <Icon name="chevron" size={18} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -272,12 +129,27 @@ export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
   const settings = useLoad(() => assets.ruleSettings(), [assets]);
   const [editing, setEditing] = useState(false);
 
-  if (!isNew && client.value === undefined) return <p className="note">Loading…</p>;
+  if (!isNew && client.value === undefined) return <Loading />;
   if (!isNew && !client.value) return <NotFound what="client" />;
   const c = client.value ?? null;
 
   return (
     <>
+      <PageHead
+        back={{ href: "#/clients", label: "Clients" }}
+        title={c ? c.name : "New client"}
+        sub={c ? [c.contact_name, c.postcode].filter(Boolean).join(" · ") || " " : " "}
+      >
+        {c && !editing && (
+          <>
+            {c.on_service_plan && <span className="pill green">Service plan</span>}
+            <button className="btn" onClick={() => setEditing(true)}>
+              <Icon name="edit" size={18} />
+              Edit
+            </button>
+          </>
+        )}
+      </PageHead>
       {isNew || editing ? (
         <ClientForm
           assets={assets}
@@ -292,12 +164,6 @@ export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
       ) : (
         c && (
           <section className="card">
-            <div className="row spread">
-              <h1>{c.name}</h1>
-              <button className="btn" onClick={() => setEditing(true)}>
-                Edit
-              </button>
-            </div>
             <dl className="facts">
               <Fact k="Contact" v={c.contact_name} />
               <Fact k="Phone" v={c.phone} />
@@ -314,13 +180,18 @@ export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
       {c && (
         <section className="card">
           <div className="row spread">
-            <h1>Installs</h1>
+            <h2>Installs</h2>
             <a className="btn pri" href={`#/system/new?client=${c.id}`}>
+              <Icon name="plus" size={18} />
               Add install
             </a>
           </div>
-          {systems.value?.length === 0 && <p className="note">No installs yet.</p>}
-          <ul className="list">
+          {systems.value?.length === 0 && (
+            <Empty icon="snow" title="No installs yet">
+              Add the system you fitted or service here.
+            </Empty>
+          )}
+          <ul className="rows">
             {(systems.value ?? []).map((s) => {
               const sys = toDomain(s);
               const st = toSettings(settings.value ?? null);
@@ -328,12 +199,18 @@ export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
               return (
                 <li key={s.id}>
                   <a href={`#/system/${s.id}`} className="item">
-                    <b>{s.name}</b>
-                    <span className="note">
-                      {[s.site_postcode, s.refrigerant].filter(Boolean).join(" · ")}
+                    <span className="avatar sq">
+                      <Icon name="snow" size={18} />
                     </span>
+                    <span className="main">
+                      <span className="t">{s.name}</span>
+                      <span className="m">
+                        {[s.site_postcode, s.refrigerant].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    <span className={`pill ${status.tone}`}>{status.label}</span>
+                    <Icon name="chevron" size={18} />
                   </a>
-                  <span className={`pill ${status.tone}`}>{status.label}</span>
                 </li>
               );
             })}
@@ -373,8 +250,8 @@ function ClientForm(p: {
     });
   }
   return (
-    <form className="card" onSubmit={submit}>
-      <h1>{c ? "Edit client" : "New client"}</h1>
+    <form className="card form" onSubmit={submit}>
+      <h2>{c ? "Edit details" : "Client details"}</h2>
       <ErrorLine error={error} />
       <Text name="name" label="Client or company name" value={c?.name} required />
       <Text name="contact_name" label="Contact name" value={c?.contact_name} />
@@ -426,20 +303,16 @@ export function SystemPage({
   const replacing = useAction();
   const printing = useAction();
 
-  if (!isNew && system.value === undefined) return <p className="note">Loading…</p>;
+  if (!isNew && system.value === undefined) return <Loading />;
   if (!isNew && !system.value) return <NotFound what="install" />;
   if (isNew && !clientId) return <NotFound what="client" />;
   const s = system.value ?? null;
-  const back = client.value && (
-    <a className="back" href={`#/client/${client.value.id}`}>
-      ← {client.value.name}
-    </a>
-  );
+  const back = client.value && { href: `#/client/${client.value.id}`, label: client.value.name };
 
   if (isNew || editing)
     return (
       <>
-        {back}
+        <PageHead back={back} title={s ? s.name : "New install"} />
         <SystemForm
           assets={assets}
           system={s}
@@ -462,15 +335,34 @@ export function SystemPage({
   const f = info.fgas;
   return (
     <>
-      {back}
-      <section className="card">
-        <div className="row spread">
-          <h1>{s.name}</h1>
-          <button className="btn" onClick={() => setEditing(true)}>
-            Edit
-          </button>
-        </div>
+      <PageHead
+        back={back}
+        title={s.name}
+        sub={[s.site_address.split("\n")[0], s.site_postcode].filter(Boolean).join(", ") || " "}
+      >
         <span className={`pill ${status.tone}`}>{status.label}</span>
+        <button className="btn" onClick={() => setEditing(true)}>
+          <Icon name="edit" size={18} />
+          Edit
+        </button>
+      </PageHead>
+      <section className="card">
+        {s.refrigerant && f.kg > 0 && (
+          <div className="fgas">
+            <div>
+              <span className="fgas-n">{s.refrigerant}</span>
+              <span className="fgas-l">Refrigerant</span>
+            </div>
+            <div>
+              <span className="fgas-n">{f.kg} kg</span>
+              <span className="fgas-l">Charge</span>
+            </div>
+            <div>
+              <span className="fgas-n">{f.tonnesCo2e.toFixed(2)} t</span>
+              <span className="fgas-l">CO₂e</span>
+            </div>
+          </div>
+        )}
         <dl className="facts">
           <Fact k="Site" v={[s.site_address, s.site_postcode].filter(Boolean).join(", ")} />
           <Fact k="Installed" v={s.install_date ? formatDate(s.install_date) : "Not set"} />
@@ -495,20 +387,24 @@ export function SystemPage({
       </section>
       {sticker && !adding && (
         <section className="card banner-card">
-          <h1>New sticker {sticker}</h1>
+          <h2>
+            New sticker <span className="uid">{sticker}</span>
+          </h2>
           <p>
             Replacing a damaged or missing sticker? Choose the unit below and its history stays with it.
             Otherwise add it as a new unit.
           </p>
           <ErrorLine error={replacing.error} />
-          <ul className="list">
+          <ul className="rows">
             {(units.value ?? []).map((u) => (
               <li key={u.id}>
                 <div className="item">
-                  <b>{unitTitle(u)}</b>
-                  <span className="note">
-                    Old sticker {u.sticker_code}
-                    {u.location && ` · ${u.location}`}
+                  <span className="main">
+                    <span className="t">{unitTitle(u)}</span>
+                    <span className="m">
+                      Old sticker {u.sticker_code}
+                      {u.location && ` · ${u.location}`}
+                    </span>
                   </span>
                 </div>
                 <button
@@ -533,7 +429,7 @@ export function SystemPage({
       )}
       <section className="card">
         <div className="row spread">
-          <h1>Units</h1>
+          <h2>Units</h2>
           <div className="row">
             {!!units.value?.length && (
               <button
@@ -553,11 +449,13 @@ export function SystemPage({
                   });
                 }}
               >
+                <Icon name="print" size={18} />
                 Print labels
               </button>
             )}
             {!adding && (
               <button className="btn pri" onClick={() => setAdding(true)}>
+                <Icon name="plus" size={18} />
                 Add unit
               </button>
             )}
@@ -577,16 +475,21 @@ export function SystemPage({
             cancel={() => setAdding(false)}
           />
         )}
-        {units.value?.length === 0 && !adding && <p className="note">No units yet.</p>}
-        <ul className="list">
+        {units.value?.length === 0 && !adding && (
+          <Empty icon="sticker" title="No units yet">
+            Scan a sticker on the unit, or add it here and print a label.
+          </Empty>
+        )}
+        <ul className="rows">
           {(units.value ?? []).map((u) => (
             <li key={u.id}>
               <a href={`#/u/${u.sticker_code}`} className="item">
-                <b>{unitTitle(u)}</b>
-                <span className="note">
-                  {u.sticker_code}
-                  {u.location && ` · ${u.location}`}
+                <span className="uid">{u.sticker_code}</span>
+                <span className="main">
+                  <span className="t">{unitTitle(u)}</span>
+                  <span className="m">{u.location || (u.role === "indoor" ? "Indoor" : "Outdoor")}</span>
                 </span>
+                <Icon name="chevron" size={18} />
               </a>
             </li>
           ))}
@@ -644,8 +547,8 @@ function SystemForm(p: {
     addedChargeKg: s?.added_charge_kg ?? null,
   });
   return (
-    <form className="card" onSubmit={submit}>
-      <h1>{s ? "Edit install" : "New install"}</h1>
+    <form className="card form" onSubmit={submit}>
+      <h2>{s ? "Edit details" : "Install details"}</h2>
       <ErrorLine error={error} />
       <Text name="name" label="Name (e.g. Office heat pumps)" value={s?.name} required />
       <Area name="site_address" label="Site address" value={s?.site_address ?? p.client?.billing_address} />
@@ -697,7 +600,7 @@ function SystemForm(p: {
 
 // ---------- units ----------
 
-export const unitTitle = (u: UnitRow) =>
+export const unitTitle = (u: Pick<UnitRow, "role" | "indoor_type" | "manufacturer" | "model">) =>
   [u.role === "indoor" ? u.indoor_type || "Indoor unit" : "Outdoor unit", u.manufacturer, u.model]
     .filter(Boolean)
     .join(" · ");
@@ -724,16 +627,49 @@ export function UnitPage({
   const printing = useAction();
 
   if (unit.error) return <ErrorLine error={unit.error} />;
-  if (unit.value === undefined) return <p className="note">Loading…</p>;
+  if (unit.value === undefined) return <Loading />;
   const u = unit.value;
   if (!u) return <RegisterSticker assets={assets} code={code} />;
   return (
     <>
-      {system.value && (
-        <a className="back" href={`#/system/${system.value.id}`}>
-          ← {system.value.name}
-        </a>
-      )}
+      <PageHead
+        back={system.value && { href: `#/system/${system.value.id}`, label: system.value.name }}
+        title={unitTitle(u)}
+        sub={
+          <>
+            <span className="uid">{u.sticker_code}</span>
+            {u.location && ` · ${u.location}`}
+          </>
+        }
+      >
+        {!editing && (
+          <>
+            {system.value && (
+              <button
+                className="btn"
+                disabled={printing.busy}
+                onClick={() => {
+                  const sys = system.value;
+                  if (!sys) return;
+                  const win = openPrintWindow();
+                  void printing.run(async () => {
+                    const st = toSettings(await assets.ruleSettings());
+                    const next = systemInfo(toDomain(sys), [], st, todayIso()).nextDue;
+                    win.show(labelSheetHtml([u], sys, next, await brandFor(assets, businessName)));
+                  });
+                }}
+              >
+                <Icon name="print" size={18} />
+                Print label
+              </button>
+            )}
+            <button className="btn" onClick={() => setEditing(true)}>
+              <Icon name="edit" size={18} />
+              Edit
+            </button>
+          </>
+        )}
+      </PageHead>
       {editing ? (
         <div className="card">
           <UnitForm
@@ -749,32 +685,6 @@ export function UnitPage({
         </div>
       ) : (
         <section className="card">
-          <div className="row spread">
-            <h1>{unitTitle(u)}</h1>
-            <div className="row">
-              {system.value && (
-                <button
-                  className="btn"
-                  disabled={printing.busy}
-                  onClick={() => {
-                    const sys = system.value;
-                    if (!sys) return;
-                    const win = openPrintWindow();
-                    void printing.run(async () => {
-                      const st = toSettings(await assets.ruleSettings());
-                      const next = systemInfo(toDomain(sys), [], st, todayIso()).nextDue;
-                      win.show(labelSheetHtml([u], sys, next, await brandFor(assets, businessName)));
-                    });
-                  }}
-                >
-                  Print label
-                </button>
-              )}
-              <button className="btn" onClick={() => setEditing(true)}>
-                Edit
-              </button>
-            </div>
-          </div>
           <ErrorLine error={printing.error} />
           <dl className="facts">
             <Fact k="Sticker" v={u.sticker_code} />
@@ -813,22 +723,29 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
   );
   return (
     <section className="card">
-      <h1>New sticker {code}</h1>
+      <h2>
+        New sticker <span className="uid">{code}</span>
+      </h2>
       <p>This sticker isn't on a unit yet. Pick the install it's fitted to, then add the unit's details.</p>
       <ErrorLine error={systems.error} />
       <input
         type="search"
+        className="search"
         aria-label="Search installs"
         placeholder="Search client, address or postcode"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
       />
-      <ul className="list">
+      <ul className="rows">
         {shown.slice(0, 12).map((s) => (
           <li key={s.id}>
             <div className="item">
-              <b>{s.clients?.name ?? "No client"}</b>
-              <span className="note">{[s.name, s.site_postcode].filter(Boolean).join(" · ")}</span>
+              <span className="main">
+                <span className="t">{s.clients?.name ?? "No client"}</span>
+                <span className="m">
+                  {[s.name, s.site_address.split("\n")[0], s.site_postcode].filter(Boolean).join(" · ")}
+                </span>
+              </span>
             </div>
             <a className="btn pri" href={`#/system/${s.id}?sticker=${code}`}>
               Add here

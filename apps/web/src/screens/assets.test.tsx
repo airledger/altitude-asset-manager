@@ -212,7 +212,7 @@ describe("stickers", () => {
   it("offers installs for a sticker that isn't on a unit yet, and opens the unit form with its code", async () => {
     window.location.hash = "#/u/AC-NEW99";
     app({ units: [], systems: [{ ...system, clients: { name: "Harbour Dental" } }] });
-    expect(await screen.findByText("New sticker AC-NEW99")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "New sticker AC-NEW99" })).toBeTruthy();
     const add = await screen.findByRole("link", { name: "Add here" });
     expect(add.getAttribute("href")).toBe("#/system/s1?sticker=AC-NEW99");
   });
@@ -245,6 +245,27 @@ describe("stickers", () => {
     fireEvent.click(screen.getByText("Open unit"));
     expect(await screen.findByText("Cassette · Daikin · FCAG50B")).toBeTruthy();
     expect(window.location.hash).toBe("#/u/AC-7KQ2M");
+  });
+
+  it("lists the stickers in use on the Stickers page", async () => {
+    window.location.hash = "#/stickers";
+    app({
+      units: [
+        { ...unit, created_at: "2025-03-01", systems: { ...system, clients: { name: "Harbour Dental" } } },
+      ],
+    });
+    const row = await screen.findByRole("link", { name: /AC-7KQ2M/ });
+    expect(row.getAttribute("href")).toBe("#/u/AC-7KQ2M");
+    expect(screen.getByText("Harbour Dental · Surgery heat pumps · Reception")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Stickers" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("shows overdue services on Home", async () => {
+    app({ systems: [{ ...system, clients: { name: "Harbour Dental" } }], clients: [client] });
+    expect(await screen.findByText("Needs attention")).toBeTruthy();
+    const row = await screen.findByRole("link", { name: /Harbour Dental/ });
+    expect(row.getAttribute("href")).toBe("#/system/s1");
+    expect(row.textContent).toMatch(/Overdue/);
   });
 
   it("reads new and old sticker links", () => {

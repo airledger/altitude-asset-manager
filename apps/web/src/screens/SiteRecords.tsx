@@ -27,7 +27,7 @@ export function SiteRecords(p: {
   return (
     <section className="card">
       <div className="row spread">
-        <h1>Site records</h1>
+        <h2>Site records</h2>
         {!editing && (
           <button className="btn pri" onClick={() => setEditing("new")}>
             Add note or photos
@@ -49,7 +49,7 @@ export function SiteRecords(p: {
       {records.value && shown.length === 0 && !editing && (
         <p className="note">Nothing yet. Add notes and photos at install so they're here at every service.</p>
       )}
-      <ul className="list">
+      <ul className="list records">
         {shown.map((r) => (
           <li key={r.id} className="record">
             <div className="item">

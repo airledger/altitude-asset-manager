@@ -88,6 +88,14 @@ export interface UnitRow {
   notes: string;
 }
 
+export type StickerRow = Pick<
+  UnitRow,
+  "id" | "sticker_code" | "role" | "indoor_type" | "manufacturer" | "model" | "location"
+> & {
+  created_at: string;
+  systems: { id: string; name: string; site_postcode: string; clients: { name: string } | null } | null;
+};
+
 /** The settings the due-date rules read. */
 export interface RuleSettings {
   default_interval_months: number;
@@ -232,7 +240,30 @@ export function assets(sb: SupabaseClient, orgId: string) {
       return code;
     },
 
-    /** Reserves new sticker codes for printing (1–210). */
+    /** Every sticker on a unit in this business, newest first, with where it is. */
+    async stickers(): Promise<StickerRow[]> {
+      const { data, error } = await sb
+        .from("units")
+        .select(
+          "id, sticker_code, role, indoor_type, manufacturer, model, location, created_at, systems(id, name, site_postcode, clients(name))",
+        )
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false });
+      fail(error);
+      return (data ?? []) as unknown as StickerRow[];
+    },
+
+    /** How many codes this business has reserved in all (printed, ordered or put on units). */
+    async reservedCount(): Promise<number> {
+      const { count, error } = await sb
+        .from("sticker_reservations")
+        .select("code", { count: "exact", head: true })
+        .eq("org_id", orgId);
+      fail(error);
+      return count ?? 0;
+    },
+
+    /** Reserves new sticker codes for printing (1–210 for anyone, up to 5,000 for owners). */
     async reserveStickers(count: number): Promise<string[]> {
       const { data, error } = await sb.rpc("reserve_stickers", { p_org: orgId, p_count: count });
       fail(error);
