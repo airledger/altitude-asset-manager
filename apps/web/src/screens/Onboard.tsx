@@ -12,10 +12,14 @@ type Info = { joins: boolean; businessName: string | null } | null;
 export function Onboard({
   api,
   hasBusiness,
+  email,
+  signOut,
   joined,
 }: {
   api: Api;
   hasBusiness: boolean;
+  email: string;
+  signOut: () => void;
   joined: (id: string) => void;
 }) {
   const [code, setCode] = useState(() => local.get(keys.invite));
@@ -39,6 +43,10 @@ export function Onboard({
       <section className="card">
         <h1>Join {info.businessName ?? "the business"}</h1>
         <p>You've been invited to join {info.businessName ?? "this business"} on Air Ledger.</p>
+        <p className="note">
+          You're signed in as <b>{email}</b>. If the invite is for someone else, sign out first; the invite
+          will still be here.
+        </p>
         <ErrorLine error={error} />
         <button
           className="btn pri"
@@ -52,6 +60,9 @@ export function Onboard({
           }
         >
           {busy ? "Joining…" : "Join"}
+        </button>
+        <button className="btn" onClick={signOut}>
+          Sign out and use another account
         </button>
         {hasBusiness && (
           <button className="btn" onClick={forget}>

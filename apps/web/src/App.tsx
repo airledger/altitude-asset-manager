@@ -92,6 +92,8 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
       <Onboard
         api={api}
         hasBusiness={businesses.length > 0}
+        email={session.user.email ?? ""}
+        signOut={() => void client.auth.signOut()}
         joined={(id) => {
           setPendingInvite(false);
           choose(id);

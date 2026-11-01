@@ -78,6 +78,18 @@ describe("signed in", () => {
     expect(local.get(keys.invite)).toBeNull();
   });
 
+  it("says who you're signed in as on an invite, and keeps it when you sign out", async () => {
+    local.set(keys.invite, "FORED");
+    const { client } = fakeSupabase({
+      signedInAs: olivia,
+      rpc: { invite_info: [{ valid: true, joins: true, org_name: "Business A" }] },
+    });
+    render(<App client={client} />);
+    expect(await screen.findByText("olivia@a.test")).toBeTruthy();
+    fireEvent.click(screen.getByText("Sign out and use another account"));
+    expect(local.get(keys.invite)).toBe("FORED");
+  });
+
   it("lets an owner see the team and make an invite link", async () => {
     window.location.hash = "#/team";
     const { client, calls } = fakeSupabase({
