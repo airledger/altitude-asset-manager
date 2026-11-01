@@ -4,6 +4,9 @@
 > The new app is being built alongside it in `apps/web` and `packages/`, with its database changes in
 > `supabase/migrations`, and runs on the beta test copy. See `specs/REBUILD-PLAN.md`.
 > Developers: `npm ci`, then `npm run check` (format, lint, typecheck, tests, build) and `npm run dev -w @airledger/web`.
+> Beta deploys from `main` through Cloudflare Workers Builds. Preview builds for other branches are off, so their
+> "Workers Builds" check always fails. Don't push a branch at the same commit as `main`: its failed preview build
+> is reported on that commit and hides whether the production build passed.
 
 The Air Ledger app (formerly the Altitude Climate Asset Manager), adapted to run on GitHub Pages with Supabase for data and photos.
 
