@@ -19,7 +19,7 @@ import {
   type StickerSize,
   type StickerStyle,
 } from "../sticker";
-import { BLEED, download, loadLogo, loadMeasure, stickerPdf } from "../stickerPdf";
+import { a4Grid, BLEED, download, loadLogo, loadMeasure, stickerPdf, type PdfLayout } from "../stickerPdf";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { todayIso, useLoad } from "./Assets";
@@ -249,6 +249,8 @@ function OrderBatch(p: {
   const batches = useLoad(() => p.assets.stickerBatches(), [p.assets]);
   const [count, setCount] = useState(500);
   const [note, setNote] = useState("");
+  const [layout, setLayout] = useState<PdfLayout>("a4");
+  const perSheet = a4Grid(p.design).perSheet;
   const [done, setDone] = useState("");
   const making = useAction();
   const again = useAction();
@@ -263,7 +265,10 @@ function OrderBatch(p: {
 
   // One download per tap: browsers (Safari especially) drop a second download started by the same tap.
   async function pdfFile(codes: string[], design: StickerDesign, date: string) {
-    download(await stickerPdf(design, p.brand, codes, p.link), `${fileName(codes.length, date)}.pdf`);
+    download(
+      await stickerPdf(design, p.brand, codes, p.link, layout),
+      `${fileName(codes.length, date)}${layout === "a4" ? "-a4" : ""}.pdf`,
+    );
   }
   function csvFile(codes: string[], date: string) {
     download(
@@ -299,7 +304,7 @@ function OrderBatch(p: {
             <h2>Order asset labels</h2>
             <p className="note">
               Air Ledger creates new codes for your business only and makes a print-ready PDF in this design:
-              one label per page, {size.label}, with {BLEED} mm bleed. Send it to your label manufacturer.
+              {size.label} labels with {BLEED} mm bleed. Send it to your label manufacturer.
             </p>
           </div>
         </div>
@@ -326,6 +331,13 @@ function OrderBatch(p: {
             />
           </label>
         </div>
+        <label>
+          PDF layout
+          <select value={layout} onChange={(e) => setLayout(e.currentTarget.value as PdfLayout)}>
+            <option value="a4">A4 sheets, {perSheet} labels per sheet</option>
+            <option value="single">One label per page</option>
+          </select>
+        </label>
         <button className="btn pri wide" onClick={order} disabled={making.busy}>
           <Icon name="download" size={18} />
           {making.busy

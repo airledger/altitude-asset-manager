@@ -57,32 +57,80 @@ export function loadLogo(url: string): Promise<{ src: string; aspect: number } |
   });
 }
 
-/** One page per code. `link(code)` is what each QR code opens. */
+export type PdfLayout = "a4" | "single";
+
+const A4 = { long: 297, short: 210, margin: 5, gap: 2 };
+
+/** How many labels (with their bleed) fit on an A4 sheet, turning the sheet if more fit that way. */
+export function a4Grid(design: StickerDesign) {
+  const size = STICKER_SIZES[design.size];
+  const tw = size.w + BLEED * 2;
+  const th = size.h + BLEED * 2;
+  const fit = (pw: number, ph: number) => {
+    const cols = Math.max(1, Math.floor((pw - A4.margin * 2 + A4.gap) / (tw + A4.gap)));
+    const rows = Math.max(1, Math.floor((ph - A4.margin * 2 + A4.gap) / (th + A4.gap)));
+    return { pw, ph, cols, rows };
+  };
+  const portrait = fit(A4.short, A4.long);
+  const landscape = fit(A4.long, A4.short);
+  const g = landscape.cols * landscape.rows > portrait.cols * portrait.rows ? landscape : portrait;
+  const x0 = (g.pw - (g.cols * tw + (g.cols - 1) * A4.gap)) / 2;
+  const y0 = (g.ph - (g.rows * th + (g.rows - 1) * A4.gap)) / 2;
+  return {
+    orientation: g === landscape ? ("landscape" as const) : ("portrait" as const),
+    perSheet: g.cols * g.rows,
+    at: (i: number) => ({
+      x: x0 + (i % g.cols) * (tw + A4.gap),
+      y: y0 + Math.floor(i / g.cols) * (th + A4.gap),
+    }),
+  };
+}
+
+/**
+ * The print-ready PDF. "a4": as many labels as fit on each A4 sheet, each with its 2 mm bleed and a 2 mm gap.
+ * "single": one label per page at its real size plus bleed. `link(code)` is what each QR code opens.
+ */
 export async function stickerPdf(
   design: StickerDesign,
   brand: StickerBrand,
   codes: string[],
   link: (code: string) => string,
+  layout: PdfLayout = "a4",
 ): Promise<Blob> {
   const JsPDF = await load();
   const size = STICKER_SIZES[design.size];
   const W = size.w + BLEED * 2;
   const H = size.h + BLEED * 2;
   const orientation = W >= H ? "landscape" : "portrait";
-  const doc = new JsPDF({ unit: "mm", format: [W, H], orientation, compress: true });
+  const grid = a4Grid(design);
+  const doc =
+    layout === "a4"
+      ? new JsPDF({ unit: "mm", format: "a4", orientation: grid.orientation, compress: true })
+      : new JsPDF({ unit: "mm", format: [W, H], orientation, compress: true });
   doc.setProperties({
     title: `${brand.businessName} asset labels (${codes.length})`,
-    subject: `${size.label}${size.round ? "" : " rectangle"}, ${BLEED} mm bleed. Made by Air Ledger.`,
+    subject:
+      `${size.label}${size.round ? "" : " rectangle"}, ${BLEED} mm bleed` +
+      (layout === "a4" ? `, ${grid.perSheet} per A4 sheet, ${A4.gap} mm apart` : ", one per page") +
+      ". Made by Air Ledger.",
     creator: "Air Ledger",
   });
   const measure = measureWith(doc);
   const b = BLEED;
 
   codes.forEach((code, i) => {
-    if (i > 0) doc.addPage([W, H], orientation);
+    let ox = 0;
+    let oy = 0;
+    if (layout === "a4") {
+      const slot = i % grid.perSheet;
+      if (i > 0 && slot === 0) doc.addPage("a4", grid.orientation);
+      ({ x: ox, y: oy } = grid.at(slot));
+    } else if (i > 0) doc.addPage([W, H], orientation);
     const art = layoutSticker(design, brand, code, link(code), measure);
     doc.setFillColor(art.bg);
-    doc.rect(0, 0, W, H, "F");
+    doc.rect(ox, oy, W, H, "F");
+    const X = ox + b;
+    const Y = oy + b;
     for (const s of art.shapes) {
       switch (s.t) {
         case "rect": {
@@ -97,8 +145,8 @@ export async function stickerPdf(
           const y = s.y <= 0 ? -b : s.y;
           const w = s.x + s.w >= size.w ? size.w + b - x : s.x + s.w - x;
           const h = s.y + s.h >= size.h ? size.h + b - y : s.y + s.h - y;
-          if (s.r) doc.roundedRect(x + b, y + b, w, h, s.r, s.r, style);
-          else doc.rect(x + b, y + b, w, h, style);
+          if (s.r) doc.roundedRect(x + X, y + Y, w, h, s.r, s.r, style);
+          else doc.rect(x + X, y + Y, w, h, style);
           break;
         }
         case "circle":
@@ -107,23 +155,23 @@ export async function stickerPdf(
             doc.setDrawColor(s.stroke);
             doc.setLineWidth(s.sw ?? 0.3);
           }
-          doc.circle(s.cx + b, s.cy + b, s.r, s.fill ? (s.stroke ? "FD" : "F") : "S");
+          doc.circle(s.cx + X, s.cy + Y, s.r, s.fill ? (s.stroke ? "FD" : "F") : "S");
           break;
         case "text":
           doc.setFont(...FONTS[s.font]);
           doc.setFontSize(s.pt);
           doc.setTextColor(s.fill);
-          doc.text(s.text, s.x + b, s.y + b, { align: s.align, baseline: "alphabetic" });
+          doc.text(s.text, s.x + X, s.y + Y, { align: s.align, baseline: "alphabetic" });
           break;
         case "image":
-          doc.addImage(s.src, "PNG", s.x + b, s.y + b, s.w, s.h, "logo", "FAST");
+          doc.addImage(s.src, "PNG", s.x + X, s.y + Y, s.w, s.h, "logo", "FAST");
           break;
         case "qr": {
           const { n, runs } = qrRuns(s.data);
           const u = s.size / n;
           doc.setFillColor("#000000");
           for (const [r, c, len] of runs)
-            doc.rect(s.x + b + c * u, s.y + b + r * u, len * u + 0.01, u + 0.01, "F");
+            doc.rect(s.x + X + c * u, s.y + Y + r * u, len * u + 0.01, u + 0.01, "F");
           break;
         }
       }
