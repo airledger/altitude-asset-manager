@@ -304,3 +304,28 @@ label.btn.pri {
   width: 100%;
   min-height: 52px;
 }
+.pre {
+  white-space: pre-line;
+  margin: 4px 0 0;
+}
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.thumbs img,
+.thumb-wait {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--line);
+  display: block;
+}
+.list li.record {
+  align-items: flex-start;
+}
+.banner-card {
+  border: 2px solid var(--air);
+}

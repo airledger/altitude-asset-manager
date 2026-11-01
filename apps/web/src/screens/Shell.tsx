@@ -102,10 +102,18 @@ export function Shell(props: {
             clientId={r.query.get("client")}
             sticker={r.query.get("sticker")}
             businessName={current.name}
+            author={session.user.email ?? ""}
           />
         );
       case "u":
-        return <UnitPage assets={assets} code={r.arg} businessName={current.name} />;
+        return (
+          <UnitPage
+            assets={assets}
+            code={r.arg}
+            businessName={current.name}
+            author={session.user.email ?? ""}
+          />
+        );
       case "team":
         return <Team api={api} business={current} userId={session.user.id} />;
       case "business":

@@ -20,6 +20,7 @@ export function fakeSupabase(opts: {
       "select",
       "eq",
       "is",
+      "in",
       "gt",
       "order",
       "delete",
@@ -62,7 +63,15 @@ export function fakeSupabase(opts: {
     },
     from: query,
     storage: {
-      from: () => ({ upload: () => result({}), getPublicUrl: () => ({ data: { publicUrl: "" } }) }),
+      from: (bucket: string) => ({
+        upload: (path: string) => (
+          calls.push({ kind: "from", name: `storage.${bucket}.upload`, args: [path] }),
+          result({})
+        ),
+        getPublicUrl: () => ({ data: { publicUrl: "" } }),
+        createSignedUrls: (paths: string[]) =>
+          result(paths.map((path) => ({ path, signedUrl: `https://signed/${path}` }))),
+      }),
     },
   };
   return { client: client as unknown as SupabaseClient, calls };

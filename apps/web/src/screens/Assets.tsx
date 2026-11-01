@@ -29,6 +29,7 @@ import {
   type PrintBrand,
 } from "../print";
 import { decodePhoto } from "../scan";
+import { SiteRecords } from "./SiteRecords";
 import { ErrorLine, useAction } from "../useAction";
 
 const REFRIGERANTS = [...Object.keys(REFRIGERANT_GWP), "Other"] as const;
@@ -38,7 +39,7 @@ export const go = (hash: string) => {
 };
 
 /** Loads something on mount and when `deps` change; `reload` fetches again. */
-function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
+export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   const [value, setValue] = useState<T | undefined>(undefined);
   const [error, setError] = useState("");
   const [n, setN] = useState(0);
@@ -403,6 +404,7 @@ export function SystemPage({
   clientId,
   sticker,
   businessName,
+  author,
 }: {
   assets: Assets;
   id: string;
@@ -410,6 +412,8 @@ export function SystemPage({
   /** A scanned sticker to add to this install (#/system/<id>?sticker=AC-XXXXX). */
   sticker: string | null;
   businessName: string;
+  /** Pre-filled "By" on new site records. */
+  author: string;
 }) {
   const isNew = id === "new";
   const system = useLoad(() => (isNew ? Promise.resolve(null) : assets.system(id)), [assets, id]);
@@ -418,7 +422,8 @@ export function SystemPage({
   const ownerId = system.value?.client_id ?? clientId;
   const client = useLoad(() => (ownerId ? assets.client(ownerId) : Promise.resolve(null)), [assets, ownerId]);
   const [editing, setEditing] = useState(false);
-  const [adding, setAdding] = useState(!!sticker);
+  const [adding, setAdding] = useState(false);
+  const replacing = useAction();
   const printing = useAction();
 
   if (!isNew && system.value === undefined) return <p className="note">Loading…</p>;
@@ -488,6 +493,44 @@ export function SystemPage({
           <Fact k="Notes" v={s.notes} />
         </dl>
       </section>
+      {sticker && !adding && (
+        <section className="card banner-card">
+          <h1>New sticker {sticker}</h1>
+          <p>
+            Replacing a damaged or missing sticker? Choose the unit below and its history stays with it.
+            Otherwise add it as a new unit.
+          </p>
+          <ErrorLine error={replacing.error} />
+          <ul className="list">
+            {(units.value ?? []).map((u) => (
+              <li key={u.id}>
+                <div className="item">
+                  <b>{unitTitle(u)}</b>
+                  <span className="note">
+                    Old sticker {u.sticker_code}
+                    {u.location && ` · ${u.location}`}
+                  </span>
+                </div>
+                <button
+                  className="btn"
+                  disabled={replacing.busy}
+                  onClick={() =>
+                    void replacing.run(async () => {
+                      await assets.replaceSticker(u.id, sticker);
+                      go(`#/u/${sticker}`);
+                    })
+                  }
+                >
+                  Put sticker on this unit
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="btn pri" onClick={() => setAdding(true)}>
+            Add as a new unit
+          </button>
+        </section>
+      )}
       <section className="card">
         <div className="row spread">
           <h1>Units</h1>
@@ -549,6 +592,7 @@ export function SystemPage({
           ))}
         </ul>
       </section>
+      <SiteRecords assets={assets} systemId={s.id} units={units.value ?? []} author={author} />
     </>
   );
 }
@@ -653,7 +697,7 @@ function SystemForm(p: {
 
 // ---------- units ----------
 
-const unitTitle = (u: UnitRow) =>
+export const unitTitle = (u: UnitRow) =>
   [u.role === "indoor" ? u.indoor_type || "Indoor unit" : "Outdoor unit", u.manufacturer, u.model]
     .filter(Boolean)
     .join(" · ");
@@ -663,10 +707,12 @@ export function UnitPage({
   assets,
   code,
   businessName,
+  author,
 }: {
   assets: Assets;
   code: string;
   businessName: string;
+  author: string;
 }) {
   const unit = useLoad(() => assets.unitByCode(code), [assets, code]);
   const systemId = unit.value?.system_id;
@@ -748,6 +794,7 @@ export function UnitPage({
           </dl>
         </section>
       )}
+      <SiteRecords assets={assets} systemId={u.system_id} units={[u]} unitId={u.id} author={author} />
     </>
   );
 }
@@ -760,7 +807,9 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
   const shown = (systems.value ?? []).filter(
     (s) =>
       !needle ||
-      [s.name, s.site_postcode, s.clients?.name ?? ""].some((v) => v.toLowerCase().includes(needle)),
+      [s.name, s.site_postcode, s.site_address, s.clients?.name ?? ""].some((v) =>
+        v.toLowerCase().includes(needle),
+      ),
   );
   return (
     <section className="card">
@@ -770,7 +819,7 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
       <input
         type="search"
         aria-label="Search installs"
-        placeholder="Search client, install or postcode"
+        placeholder="Search client, address or postcode"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
       />
