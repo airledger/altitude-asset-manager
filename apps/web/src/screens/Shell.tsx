@@ -2,21 +2,22 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import type { Api, Business } from "../api";
 import { assets as makeAssets } from "../assets";
-import {
-  BlankStickers,
-  ClientList,
-  OrderStickers,
-  ClientPage,
-  ScanBox,
-  SystemPage,
-  UnitPage,
-} from "./Assets";
+import { Icon, type IconName } from "../icons";
+import { Frame } from "../ui";
+import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
+import { Home } from "./Home";
+import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
 
-const tabs = { "": "Home", clients: "Clients", team: "Team", business: "Business" } as const;
-type Tab = keyof typeof tabs;
-
+const tabs: Record<string, { label: string; icon: IconName }> = {
+  "": { label: "Home", icon: "home" },
+  clients: { label: "Clients", icon: "clients" },
+  stickers: { label: "Stickers", icon: "sticker" },
+  team: { label: "Team", icon: "team" },
+  business: { label: "Business", icon: "business" },
+};
+type Tab = string;
 export interface Route {
   page: string;
   arg: string;
@@ -34,7 +35,7 @@ export function readHash(hash = window.location.hash): Route {
 
 /** Which tab a page belongs under. */
 const tabOf = (page: string): Tab =>
-  ["client", "system", "u"].includes(page) ? "clients" : page in tabs ? (page as Tab) : "";
+  ["client", "system"].includes(page) ? "clients" : page === "u" ? "stickers" : page in tabs ? page : "";
 
 /** Signed in with a business: header with the business switcher, navigation, and the page. */
 export function Shell(props: {
@@ -59,33 +60,23 @@ export function Shell(props: {
   }, []);
 
   return (
-    <>
-      <div className="bizbar">
-        {current.logoUrl && <img src={current.logoUrl} alt="" />}
-        {businesses.length > 1 ? (
-          <select aria-label="Business" value={current.id} onChange={(e) => choose(e.currentTarget.value)}>
-            {businesses.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <b>{current.name}</b>
-        )}
-        <span className="note">{current.role === "owner" ? "Owner" : "Engineer"}</span>
-      </div>
-      <nav className="tabs">
-        {(Object.keys(tabs) as Tab[]).map((t) => (
-          <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
-            {tabs[t]}
-          </a>
-        ))}
-      </nav>
+    <Frame
+      action={<ScanButton />}
+      nav={
+        <nav className="tabs" aria-label="Sections">
+          {Object.keys(tabs).map((t) => (
+            <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
+              <Icon name={tabs[t]?.icon ?? "home"} size={22} />
+              <span>{tabs[t]?.label}</span>
+            </a>
+          ))}
+        </nav>
+      }
+    >
       <div className="page" key={current.id + route.page + route.arg}>
         {page(route)}
       </div>
-    </>
+    </Frame>
   );
 
   function page(r: Route) {
@@ -118,30 +109,26 @@ export function Shell(props: {
         return <Team api={api} business={current} userId={session.user.id} />;
       case "business":
         return <BusinessSettings api={api} business={current} saved={reload} />;
+      case "stickers":
+        return (
+          <StickersPage
+            assets={assets}
+            businessName={current.name}
+            owner={current.role === "owner"}
+            unread={r.query.has("unread")}
+          />
+        );
       default:
         return (
-          <>
-            <ScanBox />
-            {current.role === "owner" && <OrderStickers assets={assets} />}
-            <BlankStickers assets={assets} businessName={current.name} />
-            <Home email={session.user.email ?? ""} signOut={signOut} />
-          </>
+          <Home
+            assets={assets}
+            current={current}
+            businesses={businesses}
+            choose={choose}
+            email={session.user.email ?? ""}
+            signOut={signOut}
+          />
         );
     }
   }
-}
-
-function Home({ email, signOut }: { email: string; signOut: () => void }) {
-  return (
-    <section className="card">
-      <h1>Welcome</h1>
-      <p>
-        Signed in as <b>{email}</b>. Clients, installs and units are under Clients. Jobs, reminders and the
-        dashboard arrive in the next stage.
-      </p>
-      <button className="btn" onClick={signOut}>
-        Sign out
-      </button>
-    </section>
-  );
 }

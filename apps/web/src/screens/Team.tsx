@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Api, Business, Invite, Member } from "../api";
+import { PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -43,8 +44,8 @@ export function Team({ api, business, userId }: { api: Api; business: Business; 
 
   return (
     <>
+      <PageHead title="Team" sub={`Everyone who can use ${business.name}`} />
       <section className="card">
-        <h1>Team</h1>
         <ErrorLine error={error} />
         <ul className="list">
           {members.map((m) => (
@@ -95,7 +96,7 @@ export function Team({ api, business, userId }: { api: Api; business: Business; 
 
       {owner && (
         <form className="card" onSubmit={invite}>
-          <h1>Invite someone</h1>
+          <h2>Invite someone</h2>
           <p className="note">
             Air Ledger makes a link for you to copy and send yourself, by text, WhatsApp or email. They join
             as an engineer, so they won't see prices. The link works once and lasts 14 days. Add their email

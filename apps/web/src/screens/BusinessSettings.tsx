@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { Api, Business } from "../api";
+import { PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 
 /** Owner only: business name, the branded sign-in link (?b=slug) and the logo. */
@@ -18,10 +19,12 @@ export function BusinessSettings({
 
   if (business.role !== "owner")
     return (
-      <section className="card">
-        <h1>{business.name}</h1>
-        <p>Only an owner can change the business details.</p>
-      </section>
+      <>
+        <PageHead title={business.name} sub="Business details" />
+        <section className="card">
+          <p>Only an owner can change the business details.</p>
+        </section>
+      </>
     );
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -47,34 +50,36 @@ export function BusinessSettings({
 
   const link = business.slug ? `${window.location.origin}/?b=${business.slug}` : "";
   return (
-    <form className="card" onSubmit={submit}>
-      <h1>Business</h1>
-      <ErrorLine error={error} />
-      {done && <p className="ok">Saved.</p>}
-      <label>
-        Business name
-        <input name="name" defaultValue={business.name} required />
-      </label>
-      <label>
-        Sign-in link name
-        <input name="slug" defaultValue={business.slug ?? ""} pattern="[a-z0-9-]*" />
-      </label>
-      {link && <p className="note">Your team signs in at {link}</p>}
-      <div className="logo-row">
-        {logoUrl ? <img src={logoUrl} alt="Business logo" /> : <span className="note">No logo yet</span>}
-        <label className="btn">
-          {logoUrl ? "Change logo" : "Add logo"}
-          <input type="file" accept="image/*" hidden onChange={(e) => upload(e.currentTarget.files?.[0])} />
+    <>
+      <PageHead title="Business" sub="Your name, sign-in link and logo" />
+      <form className="card form narrowform" onSubmit={submit}>
+        <ErrorLine error={error} />
+        {done && <p className="ok">Saved.</p>}
+        <label>
+          Business name
+          <input name="name" defaultValue={business.name} required />
         </label>
-        {logoUrl && (
-          <button type="button" className="btn" onClick={() => setLogoUrl(null)}>
-            Remove
-          </button>
-        )}
-      </div>
-      <button className="btn pri" type="submit" disabled={busy}>
-        {busy ? "Saving…" : "Save"}
-      </button>
-    </form>
+        <label>
+          Sign-in link name
+          <input name="slug" defaultValue={business.slug ?? ""} pattern="[a-z0-9-]*" />
+        </label>
+        {link && <p className="note">Your team signs in at {link}</p>}
+        <div className="logo-row">
+          {logoUrl ? <img src={logoUrl} alt="Business logo" /> : <span className="note">No logo yet</span>}
+          <label className="btn">
+            {logoUrl ? "Change logo" : "Add logo"}
+            <input type="file" accept="image/*" hidden onChange={(e) => upload(e.currentTarget.files?.[0])} />
+          </label>
+          {logoUrl && (
+            <button type="button" className="btn" onClick={() => setLogoUrl(null)}>
+              Remove
+            </button>
+          )}
+        </div>
+        <button className="btn pri" type="submit" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </>
   );
 }

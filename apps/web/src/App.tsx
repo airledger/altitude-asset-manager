@@ -6,23 +6,16 @@ import { SetNewPassword, SignedOut } from "./screens/Auth";
 import { Onboard } from "./screens/Onboard";
 import { Shell } from "./screens/Shell";
 import { supabase } from "./supabase";
+import { Frame, Loading } from "./ui";
 import { ErrorLine } from "./useAction";
 
 export function App({ client = supabase }: { client?: SupabaseClient | null }) {
-  return (
-    <>
-      <header className="top">
-        <img src="/logo-reverse.svg" alt="Air Ledger" className="logo" />
-        <span className="badge">Beta</span>
-      </header>
-      <main>
-        <p className="banner">
-          This is the test version of the new Air Ledger. Nothing here changes the live app at
-          app.airledger.co.uk.
-        </p>
-        {client ? <Account client={client} /> : <NotConnected />}
-      </main>
-    </>
+  return client ? (
+    <Account client={client} />
+  ) : (
+    <Frame narrow>
+      <NotConnected />
+    </Frame>
   );
 }
 
@@ -48,9 +41,24 @@ function Account({ client }: { client: SupabaseClient }) {
     return () => data.subscription.unsubscribe();
   }, [client]);
 
-  if (session === undefined) return <p className="note">Loading…</p>;
-  if (!session) return <SignedOut client={client} />;
-  if (resetting) return <SetNewPassword client={client} done={() => setResetting(false)} />;
+  if (session === undefined)
+    return (
+      <Frame narrow>
+        <Loading />
+      </Frame>
+    );
+  if (!session)
+    return (
+      <Frame narrow>
+        <SignedOut client={client} />
+      </Frame>
+    );
+  if (resetting)
+    return (
+      <Frame narrow>
+        <SetNewPassword client={client} done={() => setResetting(false)} />
+      </Frame>
+    );
   return <SignedIn client={client} session={session} />;
 }
 
@@ -80,26 +88,35 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
 
   if (error)
     return (
-      <section className="card">
-        <ErrorLine error={error} />
-      </section>
+      <Frame narrow>
+        <section className="card">
+          <ErrorLine error={error} />
+        </section>
+      </Frame>
     );
-  if (!businesses) return <p className="note">Loading…</p>;
+  if (!businesses)
+    return (
+      <Frame narrow>
+        <Loading />
+      </Frame>
+    );
 
   const current = businesses.find((b) => b.id === currentId) ?? businesses.at(0);
   if (pendingInvite || !current)
     return (
-      <Onboard
-        api={api}
-        hasBusiness={businesses.length > 0}
-        email={session.user.email ?? ""}
-        signOut={() => void client.auth.signOut()}
-        joined={(id) => {
-          setPendingInvite(false);
-          choose(id);
-          void load();
-        }}
-      />
+      <Frame narrow>
+        <Onboard
+          api={api}
+          hasBusiness={businesses.length > 0}
+          email={session.user.email ?? ""}
+          signOut={() => void client.auth.signOut()}
+          joined={(id) => {
+            setPendingInvite(false);
+            choose(id);
+            void load();
+          }}
+        />
+      </Frame>
     );
 
   return (
