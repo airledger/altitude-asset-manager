@@ -21,6 +21,9 @@ export const keys = { invite: "al.invite", brand: "al.brand", business: "al.busi
 
 /** Picks up ?invite= and ?b= from the address, remembers them, and tidies the address bar. */
 export function readLinkParams(loc: Location = window.location): void {
+  // Stickers link to /u/AC-XXXXX; the app shows units at #/u/AC-XXXXX.
+  const sticker = loc.pathname.match(/^\/u\/([A-Za-z0-9-]+)\/?$/)?.[1];
+  if (sticker) window.history.replaceState(null, "", `/${loc.search}#/u/${sticker.toUpperCase()}`);
   const params = new URLSearchParams(loc.search);
   const invite = params.get("invite")?.trim().toUpperCase();
   const brand = params.get("b")?.trim().toLowerCase();

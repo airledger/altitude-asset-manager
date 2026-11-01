@@ -21,6 +21,14 @@ import {
   type UnitRow,
 } from "../assets";
 import { Area, Check, Pick, readForm, Text } from "../fields";
+import {
+  labelSheetHtml,
+  openPrintWindow,
+  stickerOrderCsv,
+  stickerSheetHtml,
+  type PrintBrand,
+} from "../print";
+import { decodePhoto } from "../scan";
 import { ErrorLine, useAction } from "../useAction";
 
 const REFRIGERANTS = [...Object.keys(REFRIGERANT_GWP), "Other"] as const;
@@ -52,6 +60,24 @@ function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
 
 export function ScanBox() {
   const [error, setError] = useState("");
+  const [reading, setReading] = useState(false);
+  async function photo(file: File | undefined) {
+    if (!file) return;
+    setReading(true);
+    setError("");
+    try {
+      const code = parseScan(await decodePhoto(file));
+      if (code) go(`#/u/${code}`);
+      else
+        setError(
+          "Couldn't read a sticker in that photo. Get closer so the QR code fills the picture, or type the code.",
+        );
+    } catch {
+      setError("Couldn't read that photo. Type the code instead.");
+    } finally {
+      setReading(false);
+    }
+  }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const code = parseScan(String(new FormData(e.currentTarget).get("code") ?? ""));
@@ -63,15 +89,128 @@ export function ScanBox() {
     <form className="card" onSubmit={submit}>
       <h1>Find a unit</h1>
       <ErrorLine error={error} />
+      <label className="btn pri wide">
+        {reading ? "Reading…" : "Scan a sticker"}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          aria-label="Photo of a sticker"
+          onChange={(e) => void photo(e.currentTarget.files?.[0])}
+        />
+      </label>
       <label>
         Sticker code or link
         <input name="code" placeholder="AC-XXXXX" autoCapitalize="characters" required />
       </label>
-      <button className="btn pri" type="submit">
+      <button className="btn" type="submit">
         Open unit
       </button>
     </form>
   );
+}
+
+/** Blank stickers: codes are reserved on the server first, so no two sheets ever share a code. */
+export function BlankStickers({ assets, businessName }: { assets: Assets; businessName: string }) {
+  const [sheets, setSheets] = useState(1);
+  const { busy, error, run } = useAction();
+  function print() {
+    const win = openPrintWindow();
+    void run(async () => {
+      try {
+        const [codes, brand] = await Promise.all([
+          assets.reserveStickers(sheets * 21),
+          brandFor(assets, businessName),
+        ]);
+        win.show(stickerSheetHtml(codes, brand));
+      } catch (e) {
+        win.close();
+        throw e;
+      }
+    });
+  }
+  return (
+    <section className="card">
+      <h1>Blank stickers</h1>
+      <p className="note">
+        Each sticker gets its own code. Stick one on every unit you fit, then scan it to add the unit. Prints
+        on A4 sheets of 21 (Avery L7160, 63.5 × 38.1 mm); use weatherproof labels outdoors.
+      </p>
+      <ErrorLine error={error} />
+      <div className="row">
+        <label>
+          Sheets
+          <select value={sheets} onChange={(e) => setSheets(Number(e.currentTarget.value))}>
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n} ({n * 21} stickers)
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="btn pri" onClick={print} disabled={busy}>
+          {busy ? "Preparing…" : "Print stickers"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Owner only: reserve codes in bulk and download them for a print company making durable stickers. */
+export function OrderStickers({ assets }: { assets: Assets }) {
+  const [count, setCount] = useState(500);
+  const [done, setDone] = useState("");
+  const { busy, error, setError, run } = useAction();
+  function order() {
+    if (!Number.isInteger(count) || count < 1 || count > 5000)
+      return setError("Choose between 1 and 5,000 stickers.");
+    setDone("");
+    void run(async () => {
+      const [codes, settings] = await Promise.all([assets.reserveStickers(count), assets.ruleSettings()]);
+      const csv = stickerOrderCsv(codes, settings?.app_url || "https://app.airledger.co.uk");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      a.download = `air-ledger-sticker-codes-${todayIso()}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setDone(
+        `${codes.length} codes reserved for your business and downloaded. Send the file to your sticker printer.`,
+      );
+    });
+  }
+  return (
+    <section className="card">
+      <h1>Order stickers from a printer</h1>
+      <p className="note">
+        For durable outdoor stickers made by a print company. Air Ledger reserves the codes for your business
+        and gives you a spreadsheet of codes and QR links to send them. Each code works once, in your business
+        only.
+      </p>
+      <ErrorLine error={error} />
+      {done && <p className="ok">{done}</p>}
+      <div className="row">
+        <label>
+          How many
+          <input
+            type="number"
+            min={1}
+            max={5000}
+            value={count}
+            onChange={(e) => setCount(Number(e.currentTarget.value))}
+          />
+        </label>
+        <button className="btn pri" onClick={order} disabled={busy}>
+          {busy ? "Reserving…" : "Reserve and download"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+async function brandFor(assets: Assets, businessName: string): Promise<PrintBrand> {
+  const s = await assets.ruleSettings();
+  return { businessName, phone: s?.phone ?? "", appUrl: s?.app_url ?? "" };
 }
 
 // ---------- clients ----------
@@ -262,10 +401,15 @@ export function SystemPage({
   assets,
   id,
   clientId,
+  sticker,
+  businessName,
 }: {
   assets: Assets;
   id: string;
   clientId: string | null;
+  /** A scanned sticker to add to this install (#/system/<id>?sticker=AC-XXXXX). */
+  sticker: string | null;
+  businessName: string;
 }) {
   const isNew = id === "new";
   const system = useLoad(() => (isNew ? Promise.resolve(null) : assets.system(id)), [assets, id]);
@@ -274,7 +418,8 @@ export function SystemPage({
   const ownerId = system.value?.client_id ?? clientId;
   const client = useLoad(() => (ownerId ? assets.client(ownerId) : Promise.resolve(null)), [assets, ownerId]);
   const [editing, setEditing] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(!!sticker);
+  const printing = useAction();
 
   if (!isNew && system.value === undefined) return <p className="note">Loading…</p>;
   if (!isNew && !system.value) return <NotFound what="install" />;
@@ -346,16 +491,41 @@ export function SystemPage({
       <section className="card">
         <div className="row spread">
           <h1>Units</h1>
-          {!adding && (
-            <button className="btn pri" onClick={() => setAdding(true)}>
-              Add unit
-            </button>
-          )}
+          <div className="row">
+            {!!units.value?.length && (
+              <button
+                className="btn"
+                disabled={printing.busy}
+                onClick={() => {
+                  const win = openPrintWindow();
+                  void printing.run(async () => {
+                    win.show(
+                      labelSheetHtml(
+                        units.value ?? [],
+                        s,
+                        info.nextDue,
+                        await brandFor(assets, businessName),
+                      ),
+                    );
+                  });
+                }}
+              >
+                Print labels
+              </button>
+            )}
+            {!adding && (
+              <button className="btn pri" onClick={() => setAdding(true)}>
+                Add unit
+              </button>
+            )}
+          </div>
         </div>
+        <ErrorLine error={printing.error} />
         {adding && (
           <UnitForm
             assets={assets}
             systemId={s.id}
+            sticker={sticker}
             unit={null}
             done={() => {
               setAdding(false);
@@ -489,7 +659,15 @@ const unitTitle = (u: UnitRow) =>
     .join(" · ");
 
 /** The page a QR sticker opens: #/u/AC-XXXXX. */
-export function UnitPage({ assets, code }: { assets: Assets; code: string }) {
+export function UnitPage({
+  assets,
+  code,
+  businessName,
+}: {
+  assets: Assets;
+  code: string;
+  businessName: string;
+}) {
   const unit = useLoad(() => assets.unitByCode(code), [assets, code]);
   const systemId = unit.value?.system_id;
   const system = useLoad(
@@ -497,23 +675,12 @@ export function UnitPage({ assets, code }: { assets: Assets; code: string }) {
     [assets, systemId],
   );
   const [editing, setEditing] = useState(false);
+  const printing = useAction();
 
   if (unit.error) return <ErrorLine error={unit.error} />;
   if (unit.value === undefined) return <p className="note">Loading…</p>;
   const u = unit.value;
-  if (!u)
-    return (
-      <section className="card">
-        <h1>{code}</h1>
-        <p>
-          This sticker isn't on a unit yet. Open the install it's going on, choose Add unit, and enter this
-          code as the sticker code.
-        </p>
-        <a className="btn" href="#/clients">
-          Choose an install
-        </a>
-      </section>
-    );
+  if (!u) return <RegisterSticker assets={assets} code={code} />;
   return (
     <>
       {system.value && (
@@ -538,10 +705,31 @@ export function UnitPage({ assets, code }: { assets: Assets; code: string }) {
         <section className="card">
           <div className="row spread">
             <h1>{unitTitle(u)}</h1>
-            <button className="btn" onClick={() => setEditing(true)}>
-              Edit
-            </button>
+            <div className="row">
+              {system.value && (
+                <button
+                  className="btn"
+                  disabled={printing.busy}
+                  onClick={() => {
+                    const sys = system.value;
+                    if (!sys) return;
+                    const win = openPrintWindow();
+                    void printing.run(async () => {
+                      const st = toSettings(await assets.ruleSettings());
+                      const next = systemInfo(toDomain(sys), [], st, todayIso()).nextDue;
+                      win.show(labelSheetHtml([u], sys, next, await brandFor(assets, businessName)));
+                    });
+                  }}
+                >
+                  Print label
+                </button>
+              )}
+              <button className="btn" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            </div>
           </div>
+          <ErrorLine error={printing.error} />
           <dl className="facts">
             <Fact k="Sticker" v={u.sticker_code} />
             <Fact k="Location" v={u.location} />
@@ -564,9 +752,55 @@ export function UnitPage({ assets, code }: { assets: Assets; code: string }) {
   );
 }
 
+/** A scanned sticker that isn't on a unit yet: pick the install it's fitted to. */
+function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
+  const systems = useLoad(() => assets.allSystems(), [assets]);
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = (systems.value ?? []).filter(
+    (s) =>
+      !needle ||
+      [s.name, s.site_postcode, s.clients?.name ?? ""].some((v) => v.toLowerCase().includes(needle)),
+  );
+  return (
+    <section className="card">
+      <h1>New sticker {code}</h1>
+      <p>This sticker isn't on a unit yet. Pick the install it's fitted to, then add the unit's details.</p>
+      <ErrorLine error={systems.error} />
+      <input
+        type="search"
+        aria-label="Search installs"
+        placeholder="Search client, install or postcode"
+        value={q}
+        onChange={(e) => setQ(e.currentTarget.value)}
+      />
+      <ul className="list">
+        {shown.slice(0, 12).map((s) => (
+          <li key={s.id}>
+            <div className="item">
+              <b>{s.clients?.name ?? "No client"}</b>
+              <span className="note">{[s.name, s.site_postcode].filter(Boolean).join(" · ")}</span>
+            </div>
+            <a className="btn pri" href={`#/system/${s.id}?sticker=${code}`}>
+              Add here
+            </a>
+          </li>
+        ))}
+      </ul>
+      {systems.value?.length === 0 && (
+        <p className="note">No installs yet. Add a client and an install first.</p>
+      )}
+      <a className="btn" href="#/client/new">
+        It's for a new client
+      </a>
+    </section>
+  );
+}
+
 function UnitForm(p: {
   assets: Assets;
   systemId: string;
+  sticker?: string | null;
   unit: UnitRow | null;
   done: () => void;
   cancel: () => void;
@@ -605,7 +839,13 @@ function UnitForm(p: {
     <form className="subform" onSubmit={submit}>
       <h2>{u ? `Edit ${u.sticker_code}` : "New unit"}</h2>
       <ErrorLine error={error} />
-      {!u && <Text name="sticker_code" label="Pre-printed sticker code (blank = make a new one)" />}
+      {!u && (
+        <Text
+          name="sticker_code"
+          label="Pre-printed sticker code (blank = make a new one)"
+          value={p.sticker}
+        />
+      )}
       <div className="row" role="radiogroup" aria-label="Unit type">
         {(["indoor", "outdoor"] as const).map((r) => (
           <label key={r} className="check">

@@ -74,6 +74,8 @@ export interface RuleSettings {
   reminder_lead_days: number;
   chase_after_days: number;
   warranty_years: number;
+  phone: string;
+  app_url: string;
 }
 
 export type New<T> = Omit<T, "id"> & { id?: string | undefined };
@@ -210,10 +212,32 @@ export function assets(sb: SupabaseClient, orgId: string) {
       return code;
     },
 
+    /** Reserves new sticker codes for printing (1–210). */
+    async reserveStickers(count: number): Promise<string[]> {
+      const { data, error } = await sb.rpc("reserve_stickers", { p_org: orgId, p_count: count });
+      fail(error);
+      return data as string[];
+    },
+
+    /** Installs to pick from when registering a sticker: newest first, with the client's name. */
+    async allSystems(): Promise<(SystemRow & { clients: { name: string } | null })[]> {
+      const { data, error } = await sb
+        .from("systems")
+        .select("*, clients(name)")
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .eq("inactive", false)
+        .order("created_at", { ascending: false });
+      fail(error);
+      return (data ?? []) as (SystemRow & { clients: { name: string } | null })[];
+    },
+
     async ruleSettings(): Promise<RuleSettings | null> {
       const { data, error } = await sb
         .from("org_settings")
-        .select("default_interval_months, reminder_lead_days, chase_after_days, warranty_years")
+        .select(
+          "default_interval_months, reminder_lead_days, chase_after_days, warranty_years, phone, app_url",
+        )
         .eq("org_id", orgId)
         .maybeSingle();
       fail(error);

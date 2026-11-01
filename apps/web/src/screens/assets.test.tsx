@@ -146,6 +146,22 @@ describe("installs", () => {
 });
 
 describe("stickers", () => {
+  it("offers installs for a sticker that isn't on a unit yet, and opens the unit form with its code", async () => {
+    window.location.hash = "#/u/AC-NEW99";
+    app({ units: [], systems: [{ ...system, clients: { name: "Harbour Dental" } }] });
+    expect(await screen.findByText("New sticker AC-NEW99")).toBeTruthy();
+    const add = await screen.findByRole("link", { name: "Add here" });
+    expect(add.getAttribute("href")).toBe("#/system/s1?sticker=AC-NEW99");
+  });
+
+  it("adds a scanned sticker to an install", async () => {
+    window.location.hash = "#/system/s1?sticker=AC-NEW99";
+    app({ systems: [system], units: [], clients: [client] });
+    expect(((await screen.findByLabelText(/Pre-printed sticker code/)) as HTMLInputElement).value).toBe(
+      "AC-NEW99",
+    );
+  });
+
   it("opens a unit from a typed code", async () => {
     app({ units: [unit], systems: [system] });
     fireEvent.change(await screen.findByLabelText("Sticker code or link"), { target: { value: "ac7kq2m" } });

@@ -291,3 +291,16 @@ label.check input {
   display: grid;
   gap: 12px;
 }
+label.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+label.btn.pri {
+  color: #fff;
+}
+.btn.wide {
+  width: 100%;
+  min-height: 52px;
+}

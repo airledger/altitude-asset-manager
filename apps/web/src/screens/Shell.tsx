@@ -2,7 +2,15 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import type { Api, Business } from "../api";
 import { assets as makeAssets } from "../assets";
-import { ClientList, ClientPage, ScanBox, SystemPage, UnitPage } from "./Assets";
+import {
+  BlankStickers,
+  ClientList,
+  OrderStickers,
+  ClientPage,
+  ScanBox,
+  SystemPage,
+  UnitPage,
+} from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
 import { Team } from "./Team";
 
@@ -87,9 +95,17 @@ export function Shell(props: {
       case "client":
         return <ClientPage assets={assets} id={r.arg} />;
       case "system":
-        return <SystemPage assets={assets} id={r.arg} clientId={r.query.get("client")} />;
+        return (
+          <SystemPage
+            assets={assets}
+            id={r.arg}
+            clientId={r.query.get("client")}
+            sticker={r.query.get("sticker")}
+            businessName={current.name}
+          />
+        );
       case "u":
-        return <UnitPage assets={assets} code={r.arg} />;
+        return <UnitPage assets={assets} code={r.arg} businessName={current.name} />;
       case "team":
         return <Team api={api} business={current} userId={session.user.id} />;
       case "business":
@@ -98,6 +114,8 @@ export function Shell(props: {
         return (
           <>
             <ScanBox />
+            {current.role === "owner" && <OrderStickers assets={assets} />}
+            <BlankStickers assets={assets} businessName={current.name} />
             <Home email={session.user.email ?? ""} signOut={signOut} />
           </>
         );
