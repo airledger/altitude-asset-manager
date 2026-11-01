@@ -13,6 +13,7 @@
   "dependencies": {
     "@airledger/domain": "*",
     "@supabase/supabase-js": "^2.118.0",
+    "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",
     "qrcode-generator": "^1.4.4",
     "react": "^19.3.1",

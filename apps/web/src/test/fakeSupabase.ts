@@ -28,6 +28,7 @@ export function fakeSupabase(opts: {
       "update",
       "single",
       "maybeSingle",
+      "range",
     ])
       chain[m] = (...args: unknown[]) => {
         calls.push({ kind: "from", name: `${table}.${m}`, args });
