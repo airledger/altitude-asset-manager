@@ -50,6 +50,26 @@ export interface SystemRow {
   inactive: boolean;
 }
 
+export const SITE_RECORD_KINDS = [
+  "Site note",
+  "Photos",
+  "Install / commissioning report",
+  "Service report",
+  "Defect / remedial",
+  "Customer request",
+] as const;
+
+export interface SiteRecordRow {
+  id: string;
+  system_id: string;
+  unit_id: string | null;
+  kind: string;
+  date: string;
+  author: string;
+  text: string;
+  photo_file_ids: string[];
+}
+
 export interface UnitRow {
   id: string;
   sticker_code: string;
@@ -230,6 +250,75 @@ export function assets(sb: SupabaseClient, orgId: string) {
         .order("created_at", { ascending: false });
       fail(error);
       return (data ?? []) as (SystemRow & { clients: { name: string } | null })[];
+    },
+
+    async siteRecords(systemId: string): Promise<SiteRecordRow[]> {
+      const { data, error } = await sb
+        .from("site_records")
+        .select("id, system_id, unit_id, kind, date, author, text, photo_file_ids")
+        .eq("system_id", systemId)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
+      fail(error);
+      return (data ?? []) as SiteRecordRow[];
+    },
+
+    saveSiteRecord: (row: New<SiteRecordRow>) => save("site_records", row),
+
+    async deleteSiteRecord(id: string): Promise<void> {
+      const { error } = await sb.from("site_records").delete().eq("id", id).eq("org_id", orgId);
+      fail(error);
+    },
+
+    /** Uploads a photo into the business's own folder and records it. Returns the file id. */
+    async uploadPhoto(file: Blob): Promise<string> {
+      const path = `${orgId}/${crypto.randomUUID()}.jpg`;
+      const up = await sb.storage
+        .from("photos")
+        .upload(path, file, { contentType: file.type || "image/jpeg" });
+      fail(up.error);
+      const { data, error } = await sb
+        .from("files")
+        .insert({
+          org_id: orgId,
+          bucket: "photos",
+          path,
+          kind: "photo",
+          content_type: file.type,
+          size_bytes: file.size,
+        })
+        .select("id")
+        .single();
+      fail(error);
+      return (data as { id: string }).id;
+    },
+
+    /** Short-lived links for showing photos (the bucket is private). */
+    async photoUrls(fileIds: string[]): Promise<Record<string, string>> {
+      if (!fileIds.length) return {};
+      const { data, error } = await sb.from("files").select("id, path").in("id", fileIds);
+      fail(error);
+      const rows = (data ?? []) as { id: string; path: string }[];
+      if (!rows.length) return {};
+      const signed = await sb.storage.from("photos").createSignedUrls(
+        rows.map((r) => r.path),
+        3600,
+      );
+      fail(signed.error);
+      const byPath = new Map((signed.data ?? []).map((x) => [x.path, x.signedUrl]));
+      return Object.fromEntries(
+        rows.flatMap((r) => (byPath.get(r.path) ? [[r.id, byPath.get(r.path) ?? ""]] : [])),
+      );
+    },
+
+    /** Moves a unit onto a new sticker (the old one was lost or damaged). The unit keeps all its history. */
+    async replaceSticker(unitId: string, code: string): Promise<void> {
+      const { error } = await sb
+        .from("units")
+        .update({ sticker_code: code, from_sticker: true })
+        .eq("id", unitId)
+        .eq("org_id", orgId);
+      fail(error);
     },
 
     async ruleSettings(): Promise<RuleSettings | null> {

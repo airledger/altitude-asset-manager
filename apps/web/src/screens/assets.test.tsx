@@ -145,6 +145,69 @@ describe("installs", () => {
   });
 });
 
+describe("site records", () => {
+  it("shows notes and photos for an install", async () => {
+    window.location.hash = "#/system/s1";
+    app({
+      systems: [system],
+      units: [unit],
+      clients: [client],
+      site_records: [
+        {
+          id: "r1",
+          system_id: "s1",
+          unit_id: "u1",
+          kind: "Install / commissioning report",
+          date: "2025-03-01",
+          author: "Ed",
+          text: "Pipe run behind the ceiling tiles",
+          photo_file_ids: ["f1"],
+        },
+      ],
+      files: [{ id: "f1", path: "org-a/f1.jpg" }],
+    });
+    expect(await screen.findByText("Pipe run behind the ceiling tiles")).toBeTruthy();
+    expect(screen.getByText(/Ed · Cassette · Daikin · FCAG50B \(AC-7KQ2M\)/)).toBeTruthy();
+    const img = (await screen.findByAltText("Photo from 1 Mar 2025")) as HTMLImageElement;
+    expect(img.src).toBe("https://signed/org-a/f1.jpg");
+  });
+
+  it("adds a note, and needs notes or a photo", async () => {
+    window.location.hash = "#/system/s1";
+    const calls = app({ systems: [system], units: [unit], clients: [client], site_records: [] });
+    fireEvent.click(await screen.findByText("Add note or photos"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(await screen.findByText("Add some notes or at least one photo.")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Notes"), {
+      target: { value: "Isolator on the left of the condenser" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(calls.some((c) => c.name === "site_records.insert")).toBe(true));
+    const insert = (calls.find((c) => c.name === "site_records.insert")?.args as unknown[])[0];
+    expect(insert).toMatchObject({
+      system_id: "s1",
+      kind: "Site note",
+      text: "Isolator on the left of the condenser",
+      author: "ed@a.test",
+      photo_file_ids: [],
+    });
+  });
+
+  it("uploads photos into the business's own folder", async () => {
+    window.location.hash = "#/system/s1";
+    const calls = app({ systems: [system], units: [], clients: [client], site_records: [] });
+    fireEvent.click(await screen.findByText("Add note or photos"));
+    const photo = new File(["jpeg"], "condenser.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Photos"), { target: { files: [photo] } });
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(calls.some((c) => c.name === "site_records.insert")).toBe(true));
+    const path = (calls.find((c) => c.name === "storage.photos.upload")?.args as string[])[0];
+    expect(path).toMatch(/^org-a\/[0-9a-f-]{36}\.jpg$/);
+    const insert = (calls.find((c) => c.name === "site_records.insert")?.args as unknown[])[0];
+    expect(insert).toMatchObject({ photo_file_ids: ["new-files"] });
+  });
+});
+
 describe("stickers", () => {
   it("offers installs for a sticker that isn't on a unit yet, and opens the unit form with its code", async () => {
     window.location.hash = "#/u/AC-NEW99";
@@ -157,9 +220,23 @@ describe("stickers", () => {
   it("adds a scanned sticker to an install", async () => {
     window.location.hash = "#/system/s1?sticker=AC-NEW99";
     app({ systems: [system], units: [], clients: [client] });
+    fireEvent.click(await screen.findByText("Add as a new unit"));
     expect(((await screen.findByLabelText(/Pre-printed sticker code/)) as HTMLInputElement).value).toBe(
       "AC-NEW99",
     );
+  });
+
+  it("moves an existing unit onto a replacement sticker", async () => {
+    window.location.hash = "#/system/s1?sticker=AC-NEW99";
+    const calls = app({ systems: [system], units: [unit], clients: [client] });
+    expect(await screen.findByText("Old sticker AC-7KQ2M · Reception")).toBeTruthy();
+    fireEvent.click(screen.getByText("Put sticker on this unit"));
+    await waitFor(() => expect(window.location.hash).toBe("#/u/AC-NEW99"));
+    expect(calls).toContainEqual({
+      kind: "from",
+      name: "units.update",
+      args: [{ sticker_code: "AC-NEW99", from_sticker: true }],
+    });
   });
 
   it("opens a unit from a typed code", async () => {
