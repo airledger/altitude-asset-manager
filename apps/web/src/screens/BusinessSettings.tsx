@@ -1,15 +1,20 @@
 import { useState, type FormEvent } from "react";
 import type { Api, Business } from "../api";
 import { PageHead } from "../ui";
+import { PROFILE_FIELDS, type Assets, type ProfileField } from "../assets";
+import { Area, Text } from "../fields";
 import { ErrorLine, useAction } from "../useAction";
+import { useLoad } from "./Assets";
 
 /** Owner only: business name, the branded sign-in link (?b=slug) and the logo. */
 export function BusinessSettings({
   api,
+  assets,
   business,
   saved,
 }: {
   api: Api;
+  assets: Assets;
   business: Business;
   saved: () => void;
 }) {
@@ -80,6 +85,59 @@ export function BusinessSettings({
           {busy ? "Saving…" : "Save"}
         </button>
       </form>
+      <ProfileForm assets={assets} />
     </>
+  );
+}
+
+const PROFILE_LABELS: Record<ProfileField, [string, string?]> = {
+  trading_as: ["Trading name (if different)"],
+  phone: ["Phone", "tel"],
+  email: ["Email", "email"],
+  website: ["Website"],
+  address: ["Address"],
+  company_no: ["Company number"],
+  vat_no: ["VAT number"],
+  fgas_cert: ["F-gas company certificate number"],
+};
+
+/** Contact and company details, used on stickers, reports and invoices. */
+function ProfileForm({ assets }: { assets: Assets }) {
+  const profile = useLoad(() => assets.profile(), [assets]);
+  const [done, setDone] = useState(false);
+  const { busy, error, run } = useAction();
+  if (!profile.value) return <ErrorLine error={profile.error} />;
+  const v = profile.value;
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    setDone(false);
+    void run(async () => {
+      await assets.saveProfile(
+        Object.fromEntries(PROFILE_FIELDS.map((k) => [k, String(form.get(k) ?? "").trim()])),
+      );
+      setDone(true);
+    });
+  }
+  return (
+    <form className="card form" onSubmit={submit}>
+      <h2>Business details</h2>
+      <p className="note">Shown on your asset labels, service reports and invoices.</p>
+      <ErrorLine error={error} />
+      {done && <p className="ok">Saved.</p>}
+      {PROFILE_FIELDS.map((k) => {
+        const [label, type] = PROFILE_LABELS[k];
+        return k === "address" ? (
+          <Area key={k} name={k} label={label} value={v[k]} />
+        ) : (
+          <Text key={k} name={k} label={label} type={type ?? "text"} value={v[k]} />
+        );
+      })}
+      <div className="row">
+        <button className="btn pri" type="submit" disabled={busy}>
+          {busy ? "Saving…" : "Save details"}
+        </button>
+      </div>
+    </form>
   );
 }

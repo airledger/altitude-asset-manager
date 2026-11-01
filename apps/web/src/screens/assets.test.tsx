@@ -212,7 +212,7 @@ describe("stickers", () => {
   it("offers installs for a sticker that isn't on a unit yet, and opens the unit form with its code", async () => {
     window.location.hash = "#/u/AC-NEW99";
     app({ units: [], systems: [{ ...system, clients: { name: "Harbour Dental" } }] });
-    expect(await screen.findByRole("heading", { name: "New sticker AC-NEW99" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "New label AC-NEW99" })).toBeTruthy();
     const add = await screen.findByRole("link", { name: "Add here" });
     expect(add.getAttribute("href")).toBe("#/system/s1?sticker=AC-NEW99");
   });
@@ -221,7 +221,7 @@ describe("stickers", () => {
     window.location.hash = "#/system/s1?sticker=AC-NEW99";
     app({ systems: [system], units: [], clients: [client] });
     fireEvent.click(await screen.findByText("Add as a new unit"));
-    expect(((await screen.findByLabelText(/Pre-printed sticker code/)) as HTMLInputElement).value).toBe(
+    expect(((await screen.findByLabelText(/Pre-printed label code/)) as HTMLInputElement).value).toBe(
       "AC-NEW99",
     );
   });
@@ -229,8 +229,8 @@ describe("stickers", () => {
   it("moves an existing unit onto a replacement sticker", async () => {
     window.location.hash = "#/system/s1?sticker=AC-NEW99";
     const calls = app({ systems: [system], units: [unit], clients: [client] });
-    expect(await screen.findByText("Old sticker AC-7KQ2M · Reception")).toBeTruthy();
-    fireEvent.click(screen.getByText("Put sticker on this unit"));
+    expect(await screen.findByText("Old label AC-7KQ2M · Reception")).toBeTruthy();
+    fireEvent.click(screen.getByText("Put label on this unit"));
     await waitFor(() => expect(window.location.hash).toBe("#/u/AC-NEW99"));
     expect(calls).toContainEqual({
       kind: "from",
@@ -241,14 +241,14 @@ describe("stickers", () => {
 
   it("opens a unit from a typed code", async () => {
     app({ units: [unit], systems: [system] });
-    fireEvent.change(await screen.findByLabelText("Sticker code or link"), { target: { value: "ac7kq2m" } });
+    fireEvent.change(await screen.findByLabelText("Label code or link"), { target: { value: "ac7kq2m" } });
     fireEvent.click(screen.getByText("Open unit"));
     expect(await screen.findByText("Cassette · Daikin · FCAG50B")).toBeTruthy();
     expect(window.location.hash).toBe("#/u/AC-7KQ2M");
   });
 
-  it("lists the stickers in use on the Stickers page", async () => {
-    window.location.hash = "#/stickers";
+  it("lists the labels in use on the Asset labels page", async () => {
+    window.location.hash = "#/labels";
     app({
       units: [
         { ...unit, created_at: "2025-03-01", systems: { ...system, clients: { name: "Harbour Dental" } } },
@@ -257,7 +257,7 @@ describe("stickers", () => {
     const row = await screen.findByRole("link", { name: /AC-7KQ2M/ });
     expect(row.getAttribute("href")).toBe("#/u/AC-7KQ2M");
     expect(screen.getByText("Harbour Dental · Surgery heat pumps · Reception")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Stickers" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Asset labels" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("shows overdue services on Home", async () => {

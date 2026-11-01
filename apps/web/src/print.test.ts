@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SystemRow, UnitRow } from "./assets";
+import { DEFAULT_DESIGN } from "./sticker";
 import { labelSheetHtml, qrSvg, stickerOrderCsv, stickerSheetHtml, unitLink } from "./print";
 
 const brand = { businessName: "Cool & Co", phone: "01202 000000", appUrl: "https://app.airledger.co.uk/" };
@@ -25,7 +26,12 @@ describe("printing", () => {
 
   it("puts 21 stickers on each A4 page and escapes the business name", () => {
     const codes = Array.from({ length: 42 }, (_, i) => `AC-${String(i).padStart(5, "2")}`);
-    const html = stickerSheetHtml(codes, brand);
+    const html = stickerSheetHtml(
+      codes,
+      DEFAULT_DESIGN,
+      { businessName: "Cool & Co", phone: "01202 000000", website: "", logo: null },
+      (c) => unitLink(c, brand.appUrl),
+    );
     expect(html.match(/class="page"/g)).toHaveLength(2);
     expect(html.match(/class="st"/g)).toHaveLength(42);
     expect(html).toContain("COOL &amp; CO");

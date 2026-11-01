@@ -96,6 +96,27 @@ export type StickerRow = Pick<
   systems: { id: string; name: string; site_postcode: string; clients: { name: string } | null } | null;
 };
 
+export const PROFILE_FIELDS = [
+  "trading_as",
+  "phone",
+  "email",
+  "website",
+  "address",
+  "company_no",
+  "vat_no",
+  "fgas_cert",
+] as const;
+export type ProfileField = (typeof PROFILE_FIELDS)[number];
+export type Profile = Record<ProfileField, string> & { app_url: string; sticker_design: unknown };
+
+export interface StickerBatch {
+  id: string;
+  quantity: number;
+  design: unknown;
+  note: string;
+  created_at: string;
+}
+
 /** The settings the due-date rules read. */
 export interface RuleSettings {
   default_interval_months: number;
@@ -350,6 +371,72 @@ export function assets(sb: SupabaseClient, orgId: string) {
         .eq("id", unitId)
         .eq("org_id", orgId);
       fail(error);
+    },
+
+    /** The business's contact details and saved sticker design. */
+    async profile(): Promise<Profile> {
+      const { data, error } = await sb
+        .from("org_settings")
+        .select(`${PROFILE_FIELDS.join(", ")}, app_url, sticker_design`)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      fail(error);
+      const row = (data ?? {}) as Partial<Profile>;
+      return {
+        ...(Object.fromEntries(PROFILE_FIELDS.map((k) => [k, row[k] ?? ""])) as Record<ProfileField, string>),
+        app_url: row.app_url ?? "",
+        sticker_design: row.sticker_design ?? {},
+      };
+    },
+
+    /** Owner only (the database refuses anyone else). */
+    async saveProfile(fields: Partial<Record<ProfileField, string>> & { sticker_design?: unknown }) {
+      const { data, error } = await sb
+        .from("org_settings")
+        .update(fields)
+        .eq("org_id", orgId)
+        .select("org_id");
+      fail(error);
+      if (Array.isArray(data) && data.length === 0) throw new Error("Only an owner can change this.");
+    },
+
+    async stickerBatches(): Promise<StickerBatch[]> {
+      const { data, error } = await sb
+        .from("sticker_batches")
+        .select("id, quantity, design, note, created_at")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false });
+      fail(error);
+      return (data ?? []) as StickerBatch[];
+    },
+
+    /** Owner only: reserves `count` new codes as one batch, printed in `design`. Returns the batch id. */
+    async createStickerBatch(count: number, design: unknown, note: string): Promise<string> {
+      const { data, error } = await sb.rpc("create_sticker_batch", {
+        p_org: orgId,
+        p_count: count,
+        p_design: design,
+        p_note: note,
+      });
+      fail(error);
+      return data as string;
+    },
+
+    /** A batch's codes, in order (fetched 1,000 at a time). */
+    async batchCodes(batchId: string): Promise<string[]> {
+      const codes: string[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb
+          .from("sticker_reservations")
+          .select("code")
+          .eq("batch_id", batchId)
+          .order("code")
+          .range(from, from + 999);
+        fail(error);
+        const rows = (data ?? []) as { code: string }[];
+        codes.push(...rows.map((r) => r.code));
+        if (rows.length < 1000) return codes;
+      }
     },
 
     async ruleSettings(): Promise<RuleSettings | null> {

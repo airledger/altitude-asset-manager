@@ -7,13 +7,14 @@ import { Frame } from "../ui";
 import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
+import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
   clients: { label: "Clients", icon: "clients" },
-  stickers: { label: "Stickers", icon: "sticker" },
+  labels: { label: "Asset labels", icon: "sticker" },
   team: { label: "Team", icon: "team" },
   business: { label: "Business", icon: "business" },
 };
@@ -35,7 +36,13 @@ export function readHash(hash = window.location.hash): Route {
 
 /** Which tab a page belongs under. */
 const tabOf = (page: string): Tab =>
-  ["client", "system"].includes(page) ? "clients" : page === "u" ? "stickers" : page in tabs ? page : "";
+  ["client", "system"].includes(page)
+    ? "clients"
+    : page === "u" || page === "stickers"
+      ? "labels"
+      : page in tabs
+        ? page
+        : "";
 
 /** Signed in with a business: header with the business switcher, navigation, and the page. */
 export function Shell(props: {
@@ -108,15 +115,13 @@ export function Shell(props: {
       case "team":
         return <Team api={api} business={current} userId={session.user.id} />;
       case "business":
-        return <BusinessSettings api={api} business={current} saved={reload} />;
+        return <BusinessSettings api={api} assets={assets} business={current} saved={reload} />;
       case "stickers":
-        return (
-          <StickersPage
-            assets={assets}
-            businessName={current.name}
-            owner={current.role === "owner"}
-            unread={r.query.has("unread")}
-          />
+      case "labels":
+        return r.arg === "design" ? (
+          <StickerDesigner assets={assets} business={current} />
+        ) : (
+          <StickersPage assets={assets} business={current} unread={r.query.has("unread")} />
         );
       default:
         return (

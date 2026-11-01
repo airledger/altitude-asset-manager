@@ -388,10 +388,10 @@ export function SystemPage({
       {sticker && !adding && (
         <section className="card banner-card">
           <h2>
-            New sticker <span className="uid">{sticker}</span>
+            New label <span className="uid">{sticker}</span>
           </h2>
           <p>
-            Replacing a damaged or missing sticker? Choose the unit below and its history stays with it.
+            Replacing a damaged or missing label? Choose the unit below and its history stays with it.
             Otherwise add it as a new unit.
           </p>
           <ErrorLine error={replacing.error} />
@@ -402,7 +402,7 @@ export function SystemPage({
                   <span className="main">
                     <span className="t">{unitTitle(u)}</span>
                     <span className="m">
-                      Old sticker {u.sticker_code}
+                      Old label {u.sticker_code}
                       {u.location && ` · ${u.location}`}
                     </span>
                   </span>
@@ -417,7 +417,7 @@ export function SystemPage({
                     })
                   }
                 >
-                  Put sticker on this unit
+                  Put label on this unit
                 </button>
               </li>
             ))}
@@ -450,7 +450,7 @@ export function SystemPage({
                 }}
               >
                 <Icon name="print" size={18} />
-                Print labels
+                Print unit labels
               </button>
             )}
             {!adding && (
@@ -477,7 +477,7 @@ export function SystemPage({
         )}
         {units.value?.length === 0 && !adding && (
           <Empty icon="sticker" title="No units yet">
-            Scan a sticker on the unit, or add it here and print a label.
+            Scan the asset label on the unit, or add it here and print one.
           </Empty>
         )}
         <ul className="rows">
@@ -687,7 +687,7 @@ export function UnitPage({
         <section className="card">
           <ErrorLine error={printing.error} />
           <dl className="facts">
-            <Fact k="Sticker" v={u.sticker_code} />
+            <Fact k="Asset label" v={u.sticker_code} />
             <Fact k="Location" v={u.location} />
             <Fact k="Serial" v={u.serial} />
             <Fact k="Capacity" v={u.capacity_kw ? `${u.capacity_kw} kW` : ""} />
@@ -724,9 +724,11 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
   return (
     <section className="card">
       <h2>
-        New sticker <span className="uid">{code}</span>
+        New label <span className="uid">{code}</span>
       </h2>
-      <p>This sticker isn't on a unit yet. Pick the install it's fitted to, then add the unit's details.</p>
+      <p>
+        This asset label isn't on a unit yet. Pick the install it's fitted to, then add the unit's details.
+      </p>
       <ErrorLine error={systems.error} />
       <input
         type="search"
@@ -779,7 +781,7 @@ function UnitForm(p: {
     const f = readForm(e.currentTarget);
     const typed = f.text("sticker_code");
     const code = typed ? parseScan(typed) : "";
-    if (code === null) return setError("That sticker code doesn't look right. They look like AC-7KQ2M.");
+    if (code === null) return setError("That label code doesn't look right. They look like AC-7KQ2M.");
     void run(async () => {
       await p.assets.saveUnit({
         id: u?.id,
@@ -806,11 +808,7 @@ function UnitForm(p: {
       <h2>{u ? `Edit ${u.sticker_code}` : "New unit"}</h2>
       <ErrorLine error={error} />
       {!u && (
-        <Text
-          name="sticker_code"
-          label="Pre-printed sticker code (blank = make a new one)"
-          value={p.sticker}
-        />
+        <Text name="sticker_code" label="Pre-printed label code (blank = make a new one)" value={p.sticker} />
       )}
       <div className="row" role="radiogroup" aria-label="Unit type">
         {(["indoor", "outdoor"] as const).map((r) => (
