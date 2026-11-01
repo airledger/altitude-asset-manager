@@ -11,6 +11,7 @@
     "build:beta": "tsc -p . && vite build --mode beta"
   },
   "dependencies": {
+    "@airledger/domain": "*",
     "@supabase/supabase-js": "^2.118.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

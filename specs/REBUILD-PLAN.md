@@ -137,6 +137,8 @@ If testing slips to a week per stage, the rebuild takes about 10–12 weeks. Not
 
 After cut-over, the next features in order: server reminder emails (F8), calendar feed for iCloud/Google/Outlook (F13), automatic Xero/QuickBooks/Sage sync, office role.
 
+**End goal: a paid app (Lewis, 1 Nov 2026).** Air Ledger is to be sold to other air-conditioning businesses. After cut-over this adds a **Paid plans** stage: subscriptions with a free trial (likely Stripe Billing, with a customer portal for cards and invoices), plan limits per business enforced in the database, sign-up opened beyond invite-only (`platform.require_invite`), Supabase Pro, terms of service and privacy policy, a support mailbox, and every email (sign-up, reset, invites, reports, reminders) sent from airledger.co.uk through Resend. Lewis decides on prices and tiers before it's built.
+
 ## How Lewis tests the rebuild while it happens
 Lewis has agreed to the rebuild on condition that he can test it throughout. This is part of the plan, not an extra:
 - **Stage 0 sets it up first**: a staging Supabase project and `beta.airledger.co.uk` (a DNS record Lewis adds once at Squarespace, like the `app` one). The live app at `app.airledger.co.uk` is untouched.

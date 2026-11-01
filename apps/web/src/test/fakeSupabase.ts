@@ -14,12 +14,30 @@ export function fakeSupabase(opts: {
 
   function query(table: string) {
     const chain: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "is", "gt", "order", "delete"])
+    let one = false;
+    let wrote = false;
+    for (const m of [
+      "select",
+      "eq",
+      "is",
+      "gt",
+      "order",
+      "delete",
+      "insert",
+      "update",
+      "single",
+      "maybeSingle",
+    ])
       chain[m] = (...args: unknown[]) => {
         calls.push({ kind: "from", name: `${table}.${m}`, args });
+        if (m === "single" || m === "maybeSingle") one = true;
+        if (m === "insert" || m === "update") wrote = true;
         return chain;
       };
-    chain.then = (ok: (v: unknown) => unknown) => result(opts.tables?.[table] ?? []).then(ok);
+    const rows = () => opts.tables?.[table] ?? [];
+    // Writes answer with a new id; single rows are the table's first row.
+    chain.then = (ok: (v: unknown) => unknown) =>
+      result(wrote ? { id: `new-${table}` } : one ? (rows()[0] ?? null) : rows()).then(ok);
     return chain;
   }
 
