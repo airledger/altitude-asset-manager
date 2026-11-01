@@ -32,6 +32,7 @@ const fail = (error: { message: string } | null): void => {
 
 export function api(sb: SupabaseClient) {
   return {
+    client: sb,
     async myBusinesses(userId: string): Promise<Business[]> {
       const { data, error } = await sb
         .from("members")

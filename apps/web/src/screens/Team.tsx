@@ -97,8 +97,9 @@ export function Team({ api, business, userId }: { api: Api; business: Business; 
         <form className="card" onSubmit={invite}>
           <h1>Invite someone</h1>
           <p className="note">
-            They join as an engineer, so they won't see prices. The link works once and lasts 14 days. Add
-            their email to make sure only they can use it.
+            Air Ledger makes a link for you to copy and send yourself, by text, WhatsApp or email. They join
+            as an engineer, so they won't see prices. The link works once and lasts 14 days. Add their email
+            so only they can use it.
           </p>
           <label>
             Their email (optional)
