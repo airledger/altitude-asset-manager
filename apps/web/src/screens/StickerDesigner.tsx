@@ -261,9 +261,11 @@ function OrderBatch(p: {
         .toLowerCase() || "air-ledger"
     }-asset-labels-${n}-${date}`;
 
-  async function files(codes: string[], design: StickerDesign, date: string) {
-    const pdf = await stickerPdf(design, p.brand, codes, p.link);
-    download(pdf, `${fileName(codes.length, date)}.pdf`);
+  // One download per tap: browsers (Safari especially) drop a second download started by the same tap.
+  async function pdfFile(codes: string[], design: StickerDesign, date: string) {
+    download(await stickerPdf(design, p.brand, codes, p.link), `${fileName(codes.length, date)}.pdf`);
+  }
+  function csvFile(codes: string[], date: string) {
     download(
       new Blob([stickerOrderCsv(codes, p.appUrl)], { type: "text/csv" }),
       `${fileName(codes.length, date)}-codes.csv`,
@@ -277,9 +279,9 @@ function OrderBatch(p: {
     void making.run(async () => {
       const id = await p.assets.createStickerBatch(count, p.design, note.trim());
       const codes = await p.assets.batchCodes(id);
-      await files(codes, p.design, todayIso());
+      await pdfFile(codes, p.design, todayIso());
       setDone(
-        `${codes.length} new codes reserved for your business. The print-ready PDF and a list of the codes have downloaded.`,
+        `${codes.length} new codes reserved for your business and the print-ready PDF has downloaded. It's also under Past orders, with the list of codes.`,
       );
       setNote("");
       batches.reload();
@@ -370,11 +372,18 @@ function OrderBatch(p: {
                     className="btn"
                     disabled={again.busy}
                     onClick={() =>
-                      void again.run(async () => files(await p.assets.batchCodes(b.id), bd, date))
+                      void again.run(async () => pdfFile(await p.assets.batchCodes(b.id), bd, date))
                     }
                   >
                     <Icon name="download" size={18} />
                     PDF
+                  </button>
+                  <button
+                    className="btn"
+                    disabled={again.busy}
+                    onClick={() => void again.run(async () => csvFile(await p.assets.batchCodes(b.id), date))}
+                  >
+                    CSV
                   </button>
                 </li>
               );

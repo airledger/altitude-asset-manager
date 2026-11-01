@@ -101,7 +101,12 @@ describe("sticker designer", () => {
     URL.revokeObjectURL = vi.fn();
     const calls = app(
       owner,
-      { sticker_reservations: [{ code: "AC-7KQ2M" }, { code: "AC-9XYZ2" }] },
+      {
+        sticker_reservations: [{ code: "AC-7KQ2M" }, { code: "AC-9XYZ2" }],
+        sticker_batches: [
+          { id: "batch-1", quantity: 2, design: {}, note: "", created_at: "2026-11-01T10:00:00Z" },
+        ],
+      },
       {
         create_sticker_batch: "batch-1",
       },
@@ -120,7 +125,11 @@ describe("sticker designer", () => {
         p_note: "Van stock",
       },
     });
-    expect(urls.map((b) => b.type)).toEqual(["application/pdf", "text/csv"]);
+    // One download per tap: the PDF now, the code list from Past orders.
+    expect(urls.map((b) => b.type)).toEqual(["application/pdf"]);
+    fireEvent.click(screen.getByRole("button", { name: "CSV" }));
+    await waitFor(() => expect(urls).toHaveLength(2));
+    expect(urls[1]?.type).toBe("text/csv");
     expect(await urls[1]?.text()).toContain("AC-9XYZ2,https://app.airledger.co.uk/u/AC-9XYZ2");
   });
 
