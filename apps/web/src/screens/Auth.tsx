@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../api";
+import { api, type InviteInfo } from "../api";
 import { keys, local } from "../local";
 import { ErrorLine, useAction } from "../useAction";
 
@@ -12,12 +12,22 @@ const field = (form: FormData, name: string) => String(form.get(name) ?? "").tri
 export function SignedOut({ client }: { client: SupabaseClient }) {
   const [invite] = useState(() => local.get(keys.invite));
   const [mode, setMode] = useState<Mode>(invite ? "signup" : "signin");
+  // undefined while checking, null when the invite has run out.
+  const [info, setInfo] = useState<InviteInfo | null | undefined>(undefined);
+  useEffect(() => {
+    if (invite)
+      void api(client)
+        .inviteInfo(invite)
+        .then(setInfo, () => setInfo(undefined));
+  }, [client, invite]);
   return (
     <>
       <Brand client={client} />
-      {invite && <InviteNote client={client} code={invite} />}
+      {invite && <InviteNote info={info} />}
       {mode === "signin" && <SignIn client={client} setMode={setMode} canSignUp={!!invite} />}
-      {mode === "signup" && <SignUp client={client} setMode={setMode} />}
+      {mode === "signup" && (
+        <SignUp client={client} setMode={setMode} email={info?.email ?? ""} key={info?.email ?? ""} />
+      )}
       {mode === "forgot" && <Forgot client={client} setMode={setMode} />}
     </>
   );
@@ -42,24 +52,16 @@ function Brand({ client }: { client: SupabaseClient }) {
   );
 }
 
-function InviteNote({ client, code }: { client: SupabaseClient; code: string }) {
-  const [text, setText] = useState("");
-  useEffect(() => {
-    void api(client)
-      .inviteInfo(code)
-      .then(
-        (info) =>
-          setText(
-            !info
-              ? "This invite has expired or has already been used. Ask for a new one."
-              : info.joins
-                ? `You've been invited to join ${info.businessName ?? "a business"} on Air Ledger.`
-                : "You've been invited to set up your business on Air Ledger.",
-          ),
-        () => setText(""),
-      );
-  }, [client, code]);
-  return text ? <p className="banner">{text}</p> : null;
+function InviteNote({ info }: { info: InviteInfo | null | undefined }) {
+  if (info === undefined) return null;
+  const hi = info?.name ? `Hi ${info.name.split(" ")[0]}. ` : "";
+  const text = !info
+    ? "This invite has expired or has already been used. Ask for a new one."
+    : info.joins
+      ? `${hi}You've been invited to join ${info.businessName ?? "a business"} on Air Ledger.` +
+        (info.email ? " Choose a password to get started." : "")
+      : "You've been invited to set up your business on Air Ledger.";
+  return <p className="banner">{text}</p>;
 }
 
 function SignIn({
@@ -112,7 +114,16 @@ function SignIn({
   );
 }
 
-function SignUp({ client, setMode }: { client: SupabaseClient; setMode: (m: Mode) => void }) {
+function SignUp({
+  client,
+  setMode,
+  email: invited,
+}: {
+  client: SupabaseClient;
+  setMode: (m: Mode) => void;
+  /** The email the invite was sent to, filled in and fixed. */
+  email: string;
+}) {
   const { busy, error, setError, run } = useAction();
   const [sentTo, setSentTo] = useState("");
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -147,7 +158,14 @@ function SignUp({ client, setMode }: { client: SupabaseClient; setMode: (m: Mode
       <ErrorLine error={error} />
       <label>
         Email
-        <input name="email" type="email" autoComplete="username" required />
+        <input
+          name="email"
+          type="email"
+          autoComplete="username"
+          required
+          defaultValue={invited}
+          readOnly={!!invited}
+        />
       </label>
       <label>
         Password (at least 8 characters)

@@ -1211,3 +1211,196 @@ input.qtyin {
   grid-template-columns: 1fr 1fr;
   align-items: end;
 }
+
+/* ---------- team ---------- */
+.list.team li {
+  align-items: flex-start;
+}
+.list.team .form {
+  width: 100%;
+}
+.banner-card {
+  border: 1.5px solid var(--air);
+}
+
+/* ---------- schedule ---------- */
+.sched-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.sched-bar .chips {
+  margin: 0;
+}
+.sched-bar .who select {
+  min-width: 160px;
+}
+.sched-title {
+  margin: 14px 0 8px;
+  font-size: 17px;
+}
+.week-scroll {
+  overflow-x: auto;
+  margin: 0 -18px;
+  padding: 0 18px;
+}
+.week {
+  min-width: 860px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.week-row {
+  display: grid;
+  grid-template-columns: 120px repeat(7, minmax(0, 1fr));
+}
+.week-row + .week-row {
+  border-top: 1px solid var(--line);
+}
+.week-row.head span {
+  padding: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+}
+.week-row.head .today,
+.agenda h3.today {
+  color: var(--brand-d);
+}
+.lane {
+  padding: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.slot {
+  position: relative;
+  min-height: 72px;
+  padding: 4px 4px 22px;
+  border-left: 1px solid var(--line);
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.slot.today,
+.mday.today {
+  background: var(--brand-l);
+}
+.slot-add {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 6px;
+  opacity: 0.35;
+}
+.slot:hover .slot-add,
+.slot-add:focus {
+  opacity: 1;
+  background: var(--card);
+}
+.jobchip {
+  display: block;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #e6eef6;
+  border-left: 3px solid var(--navy-2);
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.mday .jobchip {
+  -webkit-line-clamp: 1;
+}
+.jobchip[draggable="true"] {
+  cursor: grab;
+}
+.jobchip.done {
+  background: var(--green-l);
+  border-left-color: var(--green);
+}
+.jobchip.overdue {
+  background: var(--amber-l);
+  border-left-color: var(--amber);
+}
+.jobchip.cancelled {
+  text-decoration: line-through;
+  opacity: 0.6;
+  border-left-color: var(--muted);
+}
+.month {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.month-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.month-row + .month-row {
+  border-top: 1px solid var(--line);
+}
+.month-row.head span {
+  padding: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+}
+.mday {
+  min-height: 92px;
+  padding: 4px;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+.mday + .mday {
+  border-left: 1px solid var(--line);
+}
+.mday.other {
+  background: #fafbfc;
+}
+.mday.other .mday-n {
+  color: #a5b1bd;
+}
+.mday-n {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.mday .more {
+  font-size: 11.5px;
+  color: var(--brand-d);
+}
+@media (max-width: 759px) {
+  .mday {
+    min-height: 64px;
+    padding: 2px;
+  }
+  .mday .jobchip {
+    font-size: 10.5px;
+    padding: 2px 3px;
+  }
+}
+.agenda h3 {
+  margin: 14px 0 4px;
+  font-size: 14.5px;
+}
+.agenda .rows {
+  margin-bottom: 0;
+}

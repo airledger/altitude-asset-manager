@@ -1,11 +1,20 @@
 // Cloudflare Workers config for the beta site (beta.airledger.co.uk).
-// Cloudflare runs `npm run build:beta -w @airledger/web` then `npx wrangler deploy`,
-// which uploads apps/web/dist as static files. No server code.
+// Cloudflare runs `npm run build:beta -w @airledger/web` then `npx wrangler deploy`.
+// apps/web/dist is served as static files; worker/index.js only handles calendar links (/cal/*).
 {
   "name": "airledger-beta",
   "compatibility_date": "2026-10-01",
+  "main": "./worker/index.js",
   "assets": {
     "directory": "./apps/web/dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    "run_worker_first": ["/cal/*"],
+  },
+  // Public values, the same as apps/web/.env.beta: the publishable key only allows what the database's
+  // rules let an anonymous visitor do, which for calendars is calendar_ics(token).
+  "vars": {
+    "SUPABASE_URL": "https://besbuksxoyxkvaynzvax.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_rYdtUOcfyz6mFD1EmUfXag_g5wY7X33",
   },
 }

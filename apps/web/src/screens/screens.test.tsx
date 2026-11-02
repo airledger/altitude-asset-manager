@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "../App";
 import { keys, local, readLinkParams } from "../local";
 import { fakeSupabase } from "../test/fakeSupabase";
-import { inviteLink } from "./Team";
 
 const olivia = { id: "u-olivia", email: "olivia@a.test" };
 const bizA = { id: "org-a", name: "Business A", slug: "business-a", logo_url: null };
@@ -38,6 +37,26 @@ describe("signed out", () => {
     render(<App client={client} />);
     expect(await screen.findByRole("heading", { name: "Create your account" })).toBeTruthy();
     expect(await screen.findByText("You've been invited to join Business A on Air Ledger.")).toBeTruthy();
+  });
+
+  it("fills in the engineer's name and email from their invite", async () => {
+    local.set(keys.invite, "FORED");
+    const { client, calls } = fakeSupabase({
+      rpc: {
+        invite_info: [
+          { valid: true, joins: true, org_name: "Business A", email: "ed@a.test", name: "Ed Jones" },
+        ],
+      },
+    });
+    render(<App client={client} />);
+    expect(await screen.findByText(/Hi Ed\. You've been invited to join Business A/)).toBeTruthy();
+    const email = screen.getByLabelText("Email") as HTMLInputElement;
+    expect(email.value).toBe("ed@a.test");
+    expect(email.readOnly).toBe(true);
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "longenough" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => expect(calls.some((c) => c.name === "signUp")).toBe(true));
+    expect((calls.find((c) => c.name === "signUp")?.args as { email: string }).email).toBe("ed@a.test");
   });
 
   it("shows the business's name on its own sign-in link", async () => {
@@ -90,45 +109,30 @@ describe("signed in", () => {
     expect(local.get(keys.invite)).toBe("FORED");
   });
 
-  it("lets an owner see the team and make an invite link", async () => {
-    window.location.hash = "#/team";
-    const { client, calls } = fakeSupabase({
-      signedInAs: olivia,
-      tables: {
-        members: [
-          { role: "owner", orgs: bizA, user_id: olivia.id, email: olivia.email, created_at: "2026-10-01" },
-          { role: "member", orgs: bizA, user_id: "u-ed", email: "ed@a.test", created_at: "2026-10-02" },
-        ],
-      },
-      rpc: { create_invite: "XYZ789" },
-    });
-    render(<App client={client} />);
-    expect(await screen.findByText("ed@a.test")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Make owner" })).toBeTruthy();
-    fireEvent.click(screen.getByText("Create invite link"));
-    expect(((await screen.findByLabelText("Invite link")) as HTMLInputElement).value).toBe(
-      inviteLink("XYZ789"),
-    );
-    expect(calls).toContainEqual({
-      kind: "rpc",
-      name: "create_invite",
-      args: { p_org: "org-a", p_email: null },
-    });
-  });
-
   it("doesn't let an engineer change the business or the team", async () => {
     window.location.hash = "#/business";
     const { client } = fakeSupabase({
       signedInAs: olivia,
       tables: {
         members: [{ role: "member", orgs: bizA, user_id: olivia.id, email: olivia.email, created_at: "x" }],
+        people: [
+          {
+            id: "p-o",
+            user_id: olivia.id,
+            name: "Olivia",
+            email: olivia.email,
+            phone: "",
+            fgas_cert: "",
+            active: true,
+          },
+        ],
       },
     });
     render(<App client={client} />);
     expect(await screen.findByText("Only an owner can change the business details.")).toBeTruthy();
     fireEvent.click(screen.getByRole("link", { name: /^Team/ }));
     expect(await screen.findByText(/olivia@a.test/)).toBeTruthy();
-    expect(screen.queryByText("Invite someone")).toBeNull();
+    expect(screen.queryByText("Add an engineer")).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
   });
 });

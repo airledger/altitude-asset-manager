@@ -25,6 +25,14 @@ export interface Invite {
   expiresAt: string;
 }
 
+/** What an invite is for. email and name are filled in when the owner added the person first. */
+export interface InviteInfo {
+  joins: boolean;
+  businessName: string | null;
+  email: string;
+  name: string;
+}
+
 /** Supabase errors come back as objects; turn them into a sentence for the screen. */
 const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);
@@ -59,11 +67,16 @@ export function api(sb: SupabaseClient) {
     },
 
     /** Public: what an invite code is for, without revealing anything else. */
-    async inviteInfo(code: string): Promise<{ joins: boolean; businessName: string | null } | null> {
+    async inviteInfo(code: string): Promise<InviteInfo | null> {
       const { data, error } = await sb.rpc("invite_info", { p_code: code });
       fail(error);
-      const row = (data as { valid: boolean; joins: boolean; org_name: string | null }[] | null)?.[0];
-      return row?.valid ? { joins: row.joins, businessName: row.org_name } : null;
+      const row = (
+        data as
+          { valid: boolean; joins: boolean; org_name: string | null; email?: string; name?: string }[] | null
+      )?.[0];
+      return row?.valid
+        ? { joins: row.joins, businessName: row.org_name, email: row.email ?? "", name: row.name ?? "" }
+        : null;
     },
 
     async createBusiness(name: string, code: string | null): Promise<string> {
