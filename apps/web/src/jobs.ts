@@ -41,6 +41,8 @@ export interface JobRow {
   time: string | null;
   duration_hrs: number | null;
   engineer: string;
+  /** Whose diary the job is in. engineer stays as the name printed on reports. */
+  engineer_id: string | null;
   notes: string;
   materials_ordered: boolean;
   completed_at: string | null;
@@ -80,6 +82,30 @@ export interface MaterialRow {
   qty_per: number;
   needed_when: string;
   active: boolean;
+}
+
+/** Someone who can be booked on jobs. user_id is empty until they've joined with their invite. */
+export interface PersonRow {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  fgas_cert: string;
+  active: boolean;
+}
+
+/** Everyone, or the people a feed is for: the calendar app links for a calendar feed. */
+export function calendarUrls(token: string, name: string, origin = window.location.origin) {
+  const https = `${origin}/cal/${token}.ics`;
+  const webcal = https.replace(/^https?:/, "webcal:");
+  return {
+    https,
+    apple: webcal,
+    google: `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`,
+    outlook: `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(https)}&name=${encodeURIComponent(name)}`,
+    outlookWork: `https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(https)}&name=${encodeURIComponent(name)}`,
+  };
 }
 
 export interface UnitCheckRow {
@@ -201,8 +227,10 @@ const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);
 };
 
-export function jobsApi(sb: SupabaseClient, orgId: string) {
+/** userId is the signed-in user, for "my" jobs and calendar. */
+export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
   return {
+    userId,
     /** Every job in the business, soonest first, with its install and client. */
     async jobs(): Promise<JobListRow[]> {
       const { data, error } = await sb
@@ -247,6 +275,13 @@ export function jobsApi(sb: SupabaseClient, orgId: string) {
       const { data, error } = await q;
       fail(error);
       return (data as { id: string }).id;
+    },
+
+    /** Reschedule: a new date, and optionally a new engineer (from dragging on the schedule). */
+    async move(id: string, date: string, engineer?: { id: string | null; name: string }): Promise<void> {
+      const fields = engineer ? { date, engineer_id: engineer.id, engineer: engineer.name } : { date };
+      const { error } = await sb.from("jobs").update(fields).eq("id", id).eq("org_id", orgId);
+      fail(error);
     },
 
     async setStatus(id: string, status: JobRow["status"]): Promise<void> {
@@ -335,6 +370,60 @@ export function jobsApi(sb: SupabaseClient, orgId: string) {
         .eq("id", id)
         .eq("org_id", orgId);
       fail(error);
+    },
+
+    /** The team: everyone who can be booked on a job, active first, then by name. */
+    async people(): Promise<PersonRow[]> {
+      const { data, error } = await sb
+        .from("people")
+        .select("id, user_id, name, email, phone, fgas_cert, active")
+        .eq("org_id", orgId)
+        .order("active", { ascending: false })
+        .order("name");
+      fail(error);
+      return (data ?? []) as PersonRow[];
+    },
+
+    /** The signed-in user's own row in the team, if they have one. */
+    async me(): Promise<PersonRow | null> {
+      return (await this.people()).find((x) => x.active && x.user_id === userId) ?? null;
+    },
+
+    /** Owners add and edit anyone; people can edit their own phone and F-gas certificate. */
+    async savePerson(row: New<Omit<PersonRow, "user_id">>): Promise<string> {
+      const { id, name, email, phone, fgas_cert, active } = row;
+      const fields = { name, email, phone, fgas_cert, active };
+      const q = id
+        ? sb.from("people").update(fields).eq("id", id).eq("org_id", orgId).select("id")
+        : sb
+            .from("people")
+            .insert({ ...fields, org_id: orgId })
+            .select("id");
+      const { data, error } = await q;
+      if (error?.message.includes("people_org_email"))
+        throw new Error("Someone in the team already has that email address.");
+      fail(error);
+      const rows = (Array.isArray(data) ? data : data ? [data] : []) as { id: string }[];
+      if (!rows[0]) throw new Error("Only an owner can change someone else's details.");
+      return rows[0].id;
+    },
+
+    /** Owner: an invite link locked to the person's email. A new one replaces any unused one. */
+    async invitePerson(personId: string): Promise<string> {
+      const { data, error } = await sb.rpc("invite_person", { p_person: personId });
+      fail(error);
+      return data as string;
+    },
+
+    /** The private calendar feed token for a person, or for every job (null, owners only). */
+    async calendarToken(personId: string | null, renew = false): Promise<string> {
+      const { data, error } = await sb.rpc("calendar_link", {
+        p_org: orgId,
+        p_person: personId,
+        p_new: renew,
+      });
+      fail(error);
+      return data as string;
     },
 
     async defaultEngineer(): Promise<string> {

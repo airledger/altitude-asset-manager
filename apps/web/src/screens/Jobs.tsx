@@ -32,6 +32,7 @@ import {
   type JobRow,
   type JobsApi,
   type MaterialRow,
+  type PersonRow,
 } from "../jobs";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
@@ -115,6 +116,10 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
   return (
     <>
       <PageHead title="Jobs" sub="Book, complete and look back over every visit.">
+        <a className="btn" href="#/schedule">
+          <Icon name="calendar" size={18} />
+          Schedule
+        </a>
         <a className="btn pri" href="#/job/new">
           <Icon name="plus" size={18} />
           Book a job
@@ -223,6 +228,7 @@ export function JobPage(p: {
   id: string;
   query: URLSearchParams;
   business: Business;
+  userId: string;
 }) {
   const isNew = p.id === "new";
   const job = useLoad(() => (isNew ? Promise.resolve(null) : p.jobs.job(p.id)), [p.jobs, p.id]);
@@ -576,16 +582,28 @@ function RecordView({ job, record, units }: { job: JobRow; record: JobRecord; un
 
 // ---------- booking ----------
 
+/** Who a new job goes to: the business's default engineer if they're in the team, otherwise you. */
+export function defaultPerson(people: PersonRow[], defaultName: string, userId: string) {
+  const name = defaultName.trim().toLowerCase();
+  return (
+    (name && people.find((x) => x.active && x.name.trim().toLowerCase() === name)) ||
+    people.find((x) => x.active && x.user_id === userId) ||
+    null
+  );
+}
+
 function BookJob(p: {
   assets: Assets;
   jobs: JobsApi;
   query: URLSearchParams;
   job: JobListRow | null;
   ctx: Ctx | null;
+  userId: string;
 }) {
   const j = p.job;
   const systems = useLoad(() => p.assets.allSystems(), [p.assets]);
   const engineer = useLoad(() => p.jobs.defaultEngineer(), [p.jobs]);
+  const people = useLoad(() => p.jobs.people(), [p.jobs]);
   const [systemId, setSystemId] = useState(j?.system_id ?? p.query.get("system") ?? "");
   const { busy, error, run } = useAction();
   // Smart defaults: an install for a new system, otherwise an annual service a week ahead.
@@ -593,7 +611,13 @@ function BookJob(p: {
   const isNewSystem = !!ctx && !ctx.system.install_date && ctx.units.length === 0;
   const indoor = ctx?.units.filter((u) => u.role === "indoor").length ?? 0;
   const type = j?.type ?? p.query.get("type") ?? (isNewSystem ? "Installation" : "Annual service");
-  const date = j?.date ?? (isNewSystem ? todayIso() : addDays(todayIso(), 7));
+  const date = j?.date ?? p.query.get("date") ?? (isNewSystem ? todayIso() : addDays(todayIso(), 7));
+  const team = people.value ?? [];
+  const engineerId = j
+    ? (j.engineer_id ?? "")
+    : (p.query.get("engineer") ?? defaultPerson(team, engineer.value ?? "", p.userId)?.id ?? "");
+  // A job booked to someone who has since left still shows them.
+  const choices = team.filter((x) => x.active || x.id === engineerId);
   const duration = j?.duration_hrs ?? (ctx ? 0.5 + 0.5 * Math.max(1, indoor) : null);
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -608,16 +632,18 @@ function BookJob(p: {
         date: f.orNull("date"),
         time: f.orNull("time"),
         duration_hrs: f.num("duration_hrs"),
-        engineer: f.text("engineer"),
+        engineer_id: f.orNull("engineer_id"),
+        engineer: team.find((x) => x.id === f.text("engineer_id"))?.name ?? "",
         notes: f.text("notes"),
       });
       go(`#/job/${id}`);
     });
   }
-  if (engineer.value === undefined && !engineer.error) return <Loading />;
+  if ((engineer.value === undefined && !engineer.error) || (people.value === undefined && !people.error))
+    return <Loading />;
   return (
     <form className="card form narrowform" onSubmit={submit} key={`${systemId}-${ctx ? "ctx" : "none"}`}>
-      <ErrorLine error={error || systems.error} />
+      <ErrorLine error={error || systems.error || people.error} />
       <label>
         Install
         <select
@@ -640,7 +666,18 @@ function BookJob(p: {
       </label>
       <div className="grid2">
         <Pick name="type" label="Job type" value={type} options={JOB_TYPES} />
-        <Text name="engineer" label="Engineer" value={j?.engineer ?? engineer.value} />
+        <label>
+          Engineer
+          <select name="engineer_id" defaultValue={engineerId}>
+            <option value="">Not assigned yet</option>
+            {choices.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name || x.email}
+                {x.active ? "" : " (left)"}
+              </option>
+            ))}
+          </select>
+        </label>
         <Text name="date" label="Date" type="date" value={date} required />
         <Text name="time" label="Time (optional)" type="time" value={j?.time?.slice(0, 5)} />
         <Text name="duration_hrs" label="Allow (hours)" type="number" value={duration} />
@@ -999,6 +1036,7 @@ export function SystemJobs({ jobs, systemId }: { jobs: JobsApi; systemId: string
           Math.abs(Date.parse(b.date ?? "") - Date.parse(today)),
       )[0];
     void act.run(async () => {
+      const me = near ? null : await jobs.me();
       const id =
         near?.id ??
         (await jobs.saveJob({
@@ -1008,7 +1046,8 @@ export function SystemJobs({ jobs, systemId }: { jobs: JobsApi; systemId: string
           date: today,
           time: null,
           duration_hrs: null,
-          engineer: await jobs.defaultEngineer(),
+          engineer_id: me?.id ?? null,
+          engineer: me?.name ?? (await jobs.defaultEngineer()),
           notes: "",
         }));
       go(`#/job/${id}?do=complete`);

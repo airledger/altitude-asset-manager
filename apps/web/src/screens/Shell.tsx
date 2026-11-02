@@ -9,6 +9,7 @@ import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
 import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
+import { SchedulePage } from "./Schedule";
 import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
@@ -40,7 +41,7 @@ export function readHash(hash = window.location.hash): Route {
 const tabOf = (page: string): Tab =>
   ["client", "system"].includes(page)
     ? "clients"
-    : page === "job"
+    : page === "job" || page === "schedule"
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
@@ -63,7 +64,10 @@ export function Shell(props: {
   const { api, session, businesses, current, choose, reload, signOut } = props;
   const [route, setRoute] = useState<Route>(() => readHash());
   const assets = useMemo(() => makeAssets(api.client, current.id), [api, current.id]);
-  const jobs = useMemo(() => jobsApi(api.client, current.id), [api, current.id]);
+  const jobs = useMemo(
+    () => jobsApi(api.client, current.id, session.user.id),
+    [api, current.id, session.user.id],
+  );
   useEffect(() => {
     const onHash = () => {
       setRoute(readHash());
@@ -123,11 +127,22 @@ export function Shell(props: {
       case "jobs":
         return <JobsPage jobs={jobs} show={r.query.get("show")} />;
       case "job":
-        return <JobPage assets={assets} jobs={jobs} id={r.arg} query={r.query} business={current} />;
+        return (
+          <JobPage
+            assets={assets}
+            jobs={jobs}
+            id={r.arg}
+            query={r.query}
+            business={current}
+            userId={session.user.id}
+          />
+        );
+      case "schedule":
+        return <SchedulePage jobs={jobs} business={current} query={r.query} />;
       case "materials":
         return <MaterialsPage jobs={jobs} business={current} />;
       case "team":
-        return <Team api={api} business={current} userId={session.user.id} />;
+        return <Team api={api} jobs={jobs} business={current} userId={session.user.id} />;
       case "business":
         return <BusinessSettings api={api} assets={assets} business={current} saved={reload} />;
       case "stickers":

@@ -94,6 +94,17 @@ function app(m: unknown, tables: Record<string, unknown[]> = {}) {
     tables: {
       members: [m],
       org_settings: [{ default_engineer: "Ed Jones", default_interval_months: 12 }],
+      people: [
+        {
+          id: "p-ed",
+          user_id: "u-ed",
+          name: "Ed Jones",
+          email: "ed@a.test",
+          phone: "",
+          fgas_cert: "",
+          active: true,
+        },
+      ],
       systems: [system],
       units,
       jobs: [job],
@@ -124,7 +135,7 @@ describe("jobs", () => {
     window.location.hash = "#/job/new?system=s1";
     const calls = app(member);
     await waitFor(() => expect((screen.getByLabelText("Allow (hours)") as HTMLInputElement).value).toBe("1"));
-    expect((screen.getByLabelText("Engineer") as HTMLInputElement).value).toBe("Ed Jones");
+    expect((screen.getByLabelText("Engineer") as HTMLSelectElement).value).toBe("p-ed");
     fireEvent.click(screen.getByRole("button", { name: "Book job" }));
     await waitFor(() => expect(calls.some((c) => c.name === "jobs.insert")).toBe(true));
     const insert = calls.find((c) => c.name === "jobs.insert");
@@ -135,6 +146,7 @@ describe("jobs", () => {
       date: addDays(todayIso(), 7),
       duration_hrs: 1,
       engineer: "Ed Jones",
+      engineer_id: "p-ed",
       org_id: "org-a",
     });
   });
