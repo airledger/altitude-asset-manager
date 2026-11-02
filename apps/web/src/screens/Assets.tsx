@@ -25,6 +25,8 @@ import { labelSheetHtml, openPrintWindow, type PrintBrand } from "../print";
 import { Icon } from "../icons";
 import { Empty, initials, Loading, PageHead } from "../ui";
 import { SiteRecords } from "./SiteRecords";
+import { SystemJobs } from "./Jobs";
+import { toJob, type JobsApi } from "../jobs";
 import { ErrorLine, useAction } from "../useAction";
 
 const REFRIGERANTS = [...Object.keys(REFRIGERANT_GWP), "Other"] as const;
@@ -277,6 +279,7 @@ function ClientForm(p: {
 
 export function SystemPage({
   assets,
+  jobs,
   id,
   clientId,
   sticker,
@@ -284,6 +287,7 @@ export function SystemPage({
   author,
 }: {
   assets: Assets;
+  jobs: JobsApi;
   id: string;
   clientId: string | null;
   /** A scanned sticker to add to this install (#/system/<id>?sticker=AC-XXXXX). */
@@ -296,6 +300,7 @@ export function SystemPage({
   const system = useLoad(() => (isNew ? Promise.resolve(null) : assets.system(id)), [assets, id]);
   const units = useLoad(() => (isNew ? Promise.resolve([]) : assets.units(id)), [assets, id]);
   const settings = useLoad(() => assets.ruleSettings(), [assets]);
+  const history = useLoad(() => (isNew ? Promise.resolve([]) : jobs.systemJobs(id)), [jobs, id]);
   const ownerId = system.value?.client_id ?? clientId;
   const client = useLoad(() => (ownerId ? assets.client(ownerId) : Promise.resolve(null)), [assets, ownerId]);
   const [editing, setEditing] = useState(false);
@@ -330,7 +335,7 @@ export function SystemPage({
 
   const sys = toDomain(s);
   const st = toSettings(settings.value ?? null);
-  const info = systemInfo(sys, [], st, todayIso());
+  const info = systemInfo(sys, (history.value ?? []).map(toJob), st, todayIso());
   const status = dueStatus(sys, info, st, todayIso());
   const f = info.fgas;
   return (
@@ -367,6 +372,7 @@ export function SystemPage({
           <Fact k="Site" v={[s.site_address, s.site_postcode].filter(Boolean).join(", ")} />
           <Fact k="Installed" v={s.install_date ? formatDate(s.install_date) : "Not set"} />
           <Fact k="Service every" v={plural(info.intervalMonths, "month")} />
+          <Fact k="Last service" v={info.lastService ? formatDate(info.lastService) : ""} />
           <Fact k="Next service" v={info.nextDue ? formatDate(info.nextDue) : "Needs an install date"} />
           <Fact k="Warranty to" v={info.warrantyEnd ? formatDate(info.warrantyEnd) : ""} />
           <Fact
@@ -484,10 +490,12 @@ export function SystemPage({
           {(units.value ?? []).map((u) => (
             <li key={u.id}>
               <a href={`#/u/${u.sticker_code}`} className="item">
-                <span className="uid">{u.sticker_code}</span>
+                <span className="assetno">#{u.asset_no}</span>
                 <span className="main">
                   <span className="t">{unitTitle(u)}</span>
-                  <span className="m">{u.location || (u.role === "indoor" ? "Indoor" : "Outdoor")}</span>
+                  <span className="m">
+                    {u.sticker_code} · {u.location || (u.role === "indoor" ? "Indoor" : "Outdoor")}
+                  </span>
                 </span>
                 <Icon name="chevron" size={18} />
               </a>
@@ -495,6 +503,7 @@ export function SystemPage({
           ))}
         </ul>
       </section>
+      <SystemJobs jobs={jobs} systemId={s.id} />
       <SiteRecords assets={assets} systemId={s.id} units={units.value ?? []} author={author} />
     </>
   );
@@ -637,7 +646,7 @@ export function UnitPage({
         title={unitTitle(u)}
         sub={
           <>
-            <span className="uid">{u.sticker_code}</span>
+            <span className="assetno">Asset #{u.asset_no}</span> <span className="uid">{u.sticker_code}</span>
             {u.location && ` · ${u.location}`}
           </>
         }
@@ -687,6 +696,7 @@ export function UnitPage({
         <section className="card">
           <ErrorLine error={printing.error} />
           <dl className="facts">
+            <Fact k="Asset number" v={`#${u.asset_no}`} />
             <Fact k="Asset label" v={u.sticker_code} />
             <Fact k="Location" v={u.location} />
             <Fact k="Serial" v={u.serial} />

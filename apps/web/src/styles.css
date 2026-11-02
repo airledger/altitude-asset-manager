@@ -1123,3 +1123,91 @@ fieldset.controls:disabled {
   max-width: 240px;
   filter: drop-shadow(0 3px 8px rgba(15, 34, 56, 0.18));
 }
+
+/* ---------- jobs ---------- */
+.kpis.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.assetno {
+  font: 700 12.5px var(--f-mono);
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.datebox {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--brand-l);
+  color: var(--brand-d);
+  font-size: 11px;
+  text-transform: uppercase;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+}
+.datebox b {
+  font: 700 18px var(--f-display);
+  letter-spacing: 0;
+}
+.qty {
+  font: 700 14px var(--f-mono);
+  min-width: 34px;
+  color: var(--navy);
+}
+input.qtyin {
+  width: 76px;
+  text-align: right;
+}
+.unitcheck {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px 14px;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.unitcheck legend {
+  font-weight: 600;
+  padding: 0 6px;
+  margin-left: -6px;
+}
+.ticks {
+  display: grid;
+  gap: 4px 16px;
+}
+@media (min-width: 760px) {
+  .ticks {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.complete .card {
+  display: grid;
+  gap: 12px;
+}
+.sticky-actions {
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 2;
+}
+@media (min-width: 760px) {
+  .sticky-actions {
+    bottom: 12px;
+  }
+}
+.linkcard {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.linkcard .item > .ic:first-child {
+  color: var(--brand-d);
+}
+.unitcheck .grid2 {
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+}

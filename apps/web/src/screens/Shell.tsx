@@ -2,11 +2,13 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import type { Api, Business } from "../api";
 import { assets as makeAssets } from "../assets";
+import { jobsApi } from "../jobs";
 import { Icon, type IconName } from "../icons";
 import { Frame } from "../ui";
 import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
+import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
 import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
@@ -14,8 +16,8 @@ import { Team } from "./Team";
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
   clients: { label: "Clients", icon: "clients" },
+  jobs: { label: "Jobs", icon: "jobs" },
   labels: { label: "Asset labels", icon: "sticker" },
-  team: { label: "Team", icon: "team" },
   business: { label: "Business", icon: "business" },
 };
 type Tab = string;
@@ -38,11 +40,15 @@ export function readHash(hash = window.location.hash): Route {
 const tabOf = (page: string): Tab =>
   ["client", "system"].includes(page)
     ? "clients"
-    : page === "u" || page === "stickers"
-      ? "labels"
-      : page in tabs
-        ? page
-        : "";
+    : page === "job"
+      ? "jobs"
+      : page === "u" || page === "stickers"
+        ? "labels"
+        : page === "team" || page === "materials"
+          ? "business"
+          : page in tabs
+            ? page
+            : "";
 
 /** Signed in with a business: header with the business switcher, navigation, and the page. */
 export function Shell(props: {
@@ -57,6 +63,7 @@ export function Shell(props: {
   const { api, session, businesses, current, choose, reload, signOut } = props;
   const [route, setRoute] = useState<Route>(() => readHash());
   const assets = useMemo(() => makeAssets(api.client, current.id), [api, current.id]);
+  const jobs = useMemo(() => jobsApi(api.client, current.id), [api, current.id]);
   useEffect(() => {
     const onHash = () => {
       setRoute(readHash());
@@ -97,6 +104,7 @@ export function Shell(props: {
           <SystemPage
             assets={assets}
             id={r.arg}
+            jobs={jobs}
             clientId={r.query.get("client")}
             sticker={r.query.get("sticker")}
             businessName={current.name}
@@ -112,6 +120,12 @@ export function Shell(props: {
             author={session.user.email ?? ""}
           />
         );
+      case "jobs":
+        return <JobsPage jobs={jobs} show={r.query.get("show")} />;
+      case "job":
+        return <JobPage assets={assets} jobs={jobs} id={r.arg} query={r.query} business={current} />;
+      case "materials":
+        return <MaterialsPage jobs={jobs} business={current} />;
       case "team":
         return <Team api={api} business={current} userId={session.user.id} />;
       case "business":

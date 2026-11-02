@@ -1,10 +1,41 @@
 import { useState, type FormEvent } from "react";
 import type { Api, Business } from "../api";
+import { Icon } from "../icons";
 import { PageHead } from "../ui";
 import { PROFILE_FIELDS, type Assets, type ProfileField } from "../assets";
 import { Area, Text } from "../fields";
 import { ErrorLine, useAction } from "../useAction";
 import { useLoad } from "./Assets";
+
+/** Team and the materials catalogue live under Business. */
+function BusinessLinks() {
+  return (
+    <nav className="card linkcard" aria-label="Business sections">
+      <ul className="rows">
+        <li>
+          <a className="item" href="#/team">
+            <Icon name="team" />
+            <span className="main">
+              <span className="t">Team</span>
+              <span className="m">Owners and engineers, and invite links</span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </a>
+        </li>
+        <li>
+          <a className="item" href="#/materials">
+            <Icon name="jobs" />
+            <span className="main">
+              <span className="t">Materials</span>
+              <span className="m">The service kit each job's parts list is worked out from</span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </a>
+        </li>
+      </ul>
+    </nav>
+  );
+}
 
 /** Owner only: business name, the branded sign-in link (?b=slug) and the logo. */
 export function BusinessSettings({
@@ -26,6 +57,7 @@ export function BusinessSettings({
     return (
       <>
         <PageHead title={business.name} sub="Business details" />
+        <BusinessLinks />
         <section className="card">
           <p>Only an owner can change the business details.</p>
         </section>
@@ -57,6 +89,7 @@ export function BusinessSettings({
   return (
     <>
       <PageHead title="Business" sub="Your name, sign-in link and logo" />
+      <BusinessLinks />
       <form className="card form narrowform" onSubmit={submit}>
         <ErrorLine error={error} />
         {done && <p className="ok">Saved.</p>}

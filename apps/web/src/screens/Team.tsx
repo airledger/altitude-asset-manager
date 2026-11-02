@@ -44,7 +44,11 @@ export function Team({ api, business, userId }: { api: Api; business: Business; 
 
   return (
     <>
-      <PageHead title="Team" sub={`Everyone who can use ${business.name}`} />
+      <PageHead
+        back={{ href: "#/business", label: "Business" }}
+        title="Team"
+        sub={`Everyone who can use ${business.name}`}
+      />
       <section className="card">
         <ErrorLine error={error} />
         <ul className="list">
