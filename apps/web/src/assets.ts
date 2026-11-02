@@ -72,6 +72,8 @@ export interface SiteRecordRow {
 
 export interface UnitRow {
   id: string;
+  /** Numbered 1, 2, 3… within the business by the database. */
+  asset_no: number;
   sticker_code: string;
   system_id: string;
   role: "outdoor" | "indoor";
@@ -90,7 +92,7 @@ export interface UnitRow {
 
 export type StickerRow = Pick<
   UnitRow,
-  "id" | "sticker_code" | "role" | "indoor_type" | "manufacturer" | "model" | "location"
+  "id" | "asset_no" | "sticker_code" | "role" | "indoor_type" | "manufacturer" | "model" | "location"
 > & {
   created_at: string;
   systems: { id: string; name: string; site_postcode: string; clients: { name: string } | null } | null;
@@ -242,7 +244,7 @@ export function assets(sb: SupabaseClient, orgId: string) {
     },
 
     /** A new unit without a pre-printed sticker gets a code reserved on the server, so it's unique. */
-    async saveUnit(row: New<UnitRow>): Promise<string> {
+    async saveUnit(row: New<Omit<UnitRow, "asset_no">>): Promise<string> {
       let code = row.sticker_code;
       if (!row.id && !code) {
         const { data, error } = await sb.rpc("reserve_stickers", { p_org: orgId, p_count: 1 });
@@ -266,7 +268,7 @@ export function assets(sb: SupabaseClient, orgId: string) {
       const { data, error } = await sb
         .from("units")
         .select(
-          "id, sticker_code, role, indoor_type, manufacturer, model, location, created_at, systems(id, name, site_postcode, clients(name))",
+          "id, asset_no, sticker_code, role, indoor_type, manufacturer, model, location, created_at, systems(id, name, site_postcode, clients(name))",
         )
         .eq("org_id", orgId)
         .order("created_at", { ascending: false });

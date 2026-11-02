@@ -205,7 +205,15 @@ export function StickersPage(p: { assets: Assets; business: Business; unread: bo
   const shown = list.filter(
     (s) =>
       !needle ||
-      [s.sticker_code, s.location, s.manufacturer, s.model, s.systems?.name, s.systems?.clients?.name]
+      [
+        s.sticker_code,
+        `#${s.asset_no}`,
+        s.location,
+        s.manufacturer,
+        s.model,
+        s.systems?.name,
+        s.systems?.clients?.name,
+      ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(needle)),
   );
@@ -225,7 +233,7 @@ export function StickersPage(p: { assets: Assets; business: Business; unread: bo
           <div className="kpis two">
             <div className="kpi">
               <span className="kpi-n">{stickers.value ? list.length : "–"}</span>
-              <span className="kpi-l">On units</span>
+              <span className="kpi-l">Assets</span>
             </div>
             <div className="kpi">
               <span className="kpi-n">{spare ?? "–"}</span>
@@ -264,6 +272,7 @@ export function StickersPage(p: { assets: Assets; business: Business; unread: bo
             {shown.map((s) => (
               <li key={s.id}>
                 <a className="item" href={`#/u/${s.sticker_code}`}>
+                  <span className="assetno">#{s.asset_no}</span>
                   <span className="uid">{s.sticker_code}</span>
                   <span className="main">
                     <span className="t">{unitTitle(s)}</span>

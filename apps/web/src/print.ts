@@ -91,7 +91,7 @@ export function labelSheetHtml(
   const label = (u: UnitRow) => {
     const kind = u.role === "indoor" ? u.indoor_type || "Indoor unit" : "Outdoor unit";
     return `<div class="lab"><div class="q">${qrSvg(unitLink(u.sticker_code, brand.appUrl))}</div><div class="tx">
-    <div class="br">${esc(brand.businessName.toUpperCase())}</div><div class="id">${esc(u.sticker_code)}</div>
+    <div class="br">${esc(brand.businessName.toUpperCase())}</div><div class="id">${esc(u.sticker_code)}${u.asset_no ? ` <span class="no">Asset #${u.asset_no}</span>` : ""}</div>
     <div class="ln"><b>${esc(kind)}</b>${u.location ? " · " + esc(u.location) : ""}</div>
     <div class="ln">${esc(u.manufacturer)} ${esc(u.model)}</div>${u.serial ? `<div class="ln">S/N ${esc(u.serial)}</div>` : ""}
     <div class="fg">Contains fluorinated greenhouse gases<br>${esc(system.refrigerant)} · ${f.kg.toFixed(2)} kg · GWP ${f.gwp} · ${f.tonnesCo2e.toFixed(2)} t CO₂e</div>
@@ -103,7 +103,7 @@ export function labelSheetHtml(
     `@page{size:A4;margin:8mm}.sheet{display:grid;grid-template-columns:repeat(2,95mm);gap:4mm;justify-content:center}
     .lab{border:1px dashed #999;height:52mm;padding:3mm;display:flex;gap:3mm;break-inside:avoid;overflow:hidden;box-sizing:border-box}
     .q{width:34mm;height:34mm;flex:none}.q svg{width:100%;height:100%}.tx{font-size:7.6pt;line-height:1.28;min-width:0}
-    .br{font-weight:bold;font-size:7pt;letter-spacing:.6pt}.id{font:bold 13pt monospace;margin:.5mm 0}
+    .br{font-weight:bold;font-size:7pt;letter-spacing:.6pt}.id{font:bold 13pt monospace;margin:.5mm 0}.no{font:bold 8pt sans-serif;border:1px solid #000;border-radius:2mm;padding:0 1.2mm;vertical-align:middle}
     .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fg{border:1px solid #000;padding:1mm;margin:1mm 0;font-size:6.6pt}`,
     `<div class="hint">Print at 100% on A4 sticker paper, or laminate. Labels are 95 × 52 mm.</div><div class="sheet">${units.map(label).join("")}</div>`,
   );

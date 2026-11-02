@@ -126,7 +126,7 @@ describe("signed in", () => {
     });
     render(<App client={client} />);
     expect(await screen.findByText("Only an owner can change the business details.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("link", { name: "Team" }));
+    fireEvent.click(screen.getByRole("link", { name: /^Team/ }));
     expect(await screen.findByText(/olivia@a.test/)).toBeTruthy();
     expect(screen.queryByText("Invite someone")).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
