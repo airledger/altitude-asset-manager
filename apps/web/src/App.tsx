@@ -31,6 +31,49 @@ function savedSession(): Session | null {
   }
 }
 
+/**
+ * "Loading…" that doesn't wait for ever: if signing in or loading the business stalls (a stuck sign-in
+ * renewal, a dropped connection), it says so after a few seconds and offers a way out.
+ */
+export function SlowLoading({ after = 10_000 }: { after?: number }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSlow(true), after);
+    return () => window.clearTimeout(t);
+  }, [after]);
+  if (!slow) return <Loading />;
+  return (
+    <section className="card">
+      <h1>This is taking too long</h1>
+      <p className="note">
+        Air Ledger couldn't reach the server. Check your signal and try again. If it keeps happening, sign in
+        again on this device; nothing saved on the server is lost.
+      </p>
+      <div className="row">
+        <button className="btn pri" onClick={() => window.location.reload()}>
+          Try again
+        </button>
+        <button
+          className="btn"
+          onClick={() =>
+            void clearSavedCopies().then(() => {
+              try {
+                for (const k of Object.keys(localStorage))
+                  if (/^sb-.+-auth-token/.test(k)) localStorage.removeItem(k);
+              } catch {
+                // Nothing to clear.
+              }
+              window.location.reload();
+            })
+          }
+        >
+          Sign in again
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function NotConnected() {
   return (
     <section className="card">
@@ -45,10 +88,12 @@ function Account({ client }: { client: SupabaseClient }) {
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
-    void client.auth.getSession().then(({ data, error }) =>
-      // With no signal an expired sign-in can't be renewed. Carry on with the one saved on the device:
-      // reads come from saved copies and changes wait in the outbox until it's renewed.
-      setSession(data.session ?? (error && isNetworkError(error) ? savedSession() : null)),
+    void client.auth.getSession().then(
+      ({ data, error }) =>
+        // With no signal an expired sign-in can't be renewed. Carry on with the one saved on the device:
+        // reads come from saved copies and changes wait in the outbox until it's renewed.
+        setSession(data.session ?? (error && isNetworkError(error) ? savedSession() : null)),
+      (e: unknown) => setSession(isNetworkError(e) ? savedSession() : null),
     );
     const { data } = client.auth.onAuthStateChange((event, s) => {
       setSession(s);
@@ -60,7 +105,7 @@ function Account({ client }: { client: SupabaseClient }) {
   if (session === undefined)
     return (
       <Frame narrow>
-        <Loading />
+        <SlowLoading />
       </Frame>
     );
   if (!session)
@@ -113,7 +158,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
   if (!businesses)
     return (
       <Frame narrow>
-        <Loading />
+        <SlowLoading />
       </Frame>
     );
 
