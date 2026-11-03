@@ -9,6 +9,9 @@ import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
 import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
+import { OrdersPage } from "./Orders";
+import { RegisterPage } from "./Register";
+import { RemindersPage } from "./Reminders";
 import { SchedulePage } from "./Schedule";
 import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
@@ -39,9 +42,9 @@ export function readHash(hash = window.location.hash): Route {
 
 /** Which tab a page belongs under. */
 const tabOf = (page: string): Tab =>
-  ["client", "system"].includes(page)
+  ["client", "system", "register"].includes(page)
     ? "clients"
-    : page === "job" || page === "schedule"
+    : ["job", "schedule", "orders"].includes(page)
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
@@ -137,6 +140,12 @@ export function Shell(props: {
             userId={session.user.id}
           />
         );
+      case "reminders":
+        return <RemindersPage assets={assets} jobs={jobs} business={current} query={r.query} />;
+      case "orders":
+        return <OrdersPage assets={assets} jobs={jobs} query={r.query} />;
+      case "register":
+        return <RegisterPage assets={assets} jobs={jobs} business={current} />;
       case "schedule":
         return <SchedulePage jobs={jobs} business={current} query={r.query} />;
       case "materials":
@@ -156,6 +165,7 @@ export function Shell(props: {
         return (
           <Home
             assets={assets}
+            jobs={jobs}
             current={current}
             businesses={businesses}
             choose={choose}

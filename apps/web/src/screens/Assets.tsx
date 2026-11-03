@@ -72,6 +72,9 @@ export function ClientList({ assets }: { assets: Assets }) {
   return (
     <>
       <PageHead title="Clients" sub={clients ? plural(clients.length, "client") : " "}>
+        <a className="btn" href="#/register">
+          Asset register
+        </a>
         <a className="btn pri" href="#/client/new">
           <Icon name="plus" size={18} />
           Add client
