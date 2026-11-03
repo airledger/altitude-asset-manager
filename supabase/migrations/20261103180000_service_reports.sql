@@ -29,11 +29,13 @@ create policy "members delete photos" on storage.objects for delete to authentic
 -- ---------- issuing ----------
 -- A report is for a completed job, its PDF is a report file in the business's reports folder, and revisions
 -- go 1, 2, 3… under one reference.
+-- Checked for people using the app; imports (the cut-over copy of the live app's reports) are trusted.
 create or replace function public.guard_service_report() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 declare
   prev public.service_reports;
 begin
+  if current_user not in ('authenticated', 'anon') then return new; end if;
   if not exists (select 1 from public.jobs where id = new.job_id and org_id = new.org_id and status = 'completed') then
     raise exception 'Complete the job before issuing its report' using errcode = '23514';
   end if;
