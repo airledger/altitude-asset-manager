@@ -69,6 +69,8 @@ const paths = {
     <path d="M12 2v20M4.9 6.5l14.2 11M19.1 6.5 4.9 17.5M9 4l3 2 3-2M9 20l3-2 3 2M3.5 10l3.2.8-1 3M20.5 10l-3.2.8 1 3" />
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  send: <path d="M21 3 10 14M21 3l-7 18-4-7-7-4z" />,
+  report: <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" />,
   alert: (
     <>
       <path d="M12 3 2 20h20z" />

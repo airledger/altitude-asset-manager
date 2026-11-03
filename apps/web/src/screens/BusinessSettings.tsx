@@ -1,3 +1,5 @@
+import type { ReportsApi } from "../reports";
+import { ReportSettingsForm } from "./Reports";
 import { useState, type FormEvent } from "react";
 import type { Api, Business } from "../api";
 import { Icon } from "../icons";
@@ -41,11 +43,13 @@ function BusinessLinks() {
 export function BusinessSettings({
   api,
   assets,
+  reports,
   business,
   saved,
 }: {
   api: Api;
   assets: Assets;
+  reports: ReportsApi;
   business: Business;
   saved: () => void;
 }) {
@@ -119,6 +123,7 @@ export function BusinessSettings({
         </button>
       </form>
       <ProfileForm assets={assets} />
+      {business.role === "owner" && <ReportSettingsForm reports={reports} />}
     </>
   );
 }

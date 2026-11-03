@@ -166,6 +166,7 @@ export function Home(p: {
               ["#/reminders", "Reminders", "Services due and who to contact"],
               ["#/orders", "Parts to order", "For the next week, fortnight or month"],
               ["#/register", "Asset register", "Every unit, with F-gas figures, as PDF or CSV"],
+              ["#/reports", "Service reports", "Every report issued, to view, download or resend"],
             ].map(([href, t, m]) => (
               <li key={href}>
                 <a className="item" href={href}>

@@ -23,11 +23,11 @@ export function Text(p: {
   );
 }
 
-export function Area(p: { name: string; label: string; value?: string | undefined }) {
+export function Area(p: { name: string; label: string; value?: string | undefined; rows?: number }) {
   return (
     <label>
       {p.label}
-      <textarea name={p.name} defaultValue={p.value ?? ""} rows={3} />
+      <textarea name={p.name} defaultValue={p.value ?? ""} rows={p.rows ?? 3} />
     </label>
   );
 }

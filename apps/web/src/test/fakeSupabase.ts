@@ -28,6 +28,8 @@ export function fakeSupabase(opts: {
       "delete",
       "insert",
       "update",
+      "upsert",
+      "limit",
       "single",
       "maybeSingle",
       "range",
@@ -35,7 +37,7 @@ export function fakeSupabase(opts: {
       chain[m] = (...args: unknown[]) => {
         calls.push({ kind: "from", name: `${table}.${m}`, args });
         if (m === "single" || m === "maybeSingle") one = true;
-        if (m === "insert" || m === "update") wrote = true;
+        if (m === "insert" || m === "update" || m === "upsert") wrote = true;
         return chain;
       };
     const rows = () => opts.tables?.[table] ?? [];
@@ -67,11 +69,23 @@ export function fakeSupabase(opts: {
       return result(opts.rpc?.[name] ?? null);
     },
     from: query,
+    functions: {
+      invoke: (name: string, args: unknown) => {
+        calls.push({ kind: "rpc", name: `fn.${name}`, args });
+        const err = opts.rpcErrors?.[`fn.${name}`];
+        if (err) return Promise.resolve({ data: null, error: { message: err } });
+        return result(opts.rpc?.[`fn.${name}`] ?? { id: "email-1" });
+      },
+    },
     storage: {
       from: (bucket: string) => ({
         upload: (path: string) => (
           calls.push({ kind: "from", name: `storage.${bucket}.upload`, args: [path] }),
           result({})
+        ),
+        download: (path: string) => (
+          calls.push({ kind: "from", name: `storage.${bucket}.download`, args: [path] }),
+          result(new Blob(["%PDF-1.3"], { type: "application/pdf" }))
         ),
         getPublicUrl: () => ({ data: { publicUrl: "" } }),
         createSignedUrls: (paths: string[]) =>

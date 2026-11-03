@@ -1513,3 +1513,44 @@ input.qtyin {
   color: var(--red);
   font-size: 13px;
 }
+
+/* ---------- service reports ---------- */
+.banner.ok {
+  background: var(--green-l);
+}
+.btn.sm {
+  min-height: 38px;
+  padding: 6px 10px;
+}
+.sigpad {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+.sigpad .lbl {
+  font-weight: 600;
+  font-size: 14px;
+}
+.sigpad canvas {
+  width: 100%;
+  height: 170px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sigpad .sig-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 70px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.signoff .sigpad + .check,
+.signoff .check + .sigpad {
+  margin-top: 6px;
+}
