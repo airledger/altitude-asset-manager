@@ -5,6 +5,7 @@ import { keys, local } from "./local";
 import { SetNewPassword, SignedOut } from "./screens/Auth";
 import { Onboard } from "./screens/Onboard";
 import { Shell } from "./screens/Shell";
+import { clearSavedCopies, isNetworkError } from "./offline";
 import { supabase } from "./supabase";
 import { Frame, Loading } from "./ui";
 import { ErrorLine } from "./useAction";
@@ -17,6 +18,17 @@ export function App({ client = supabase }: { client?: SupabaseClient | null }) {
       <NotConnected />
     </Frame>
   );
+}
+
+/** The sign-in Supabase keeps on the device, even if it has expired. */
+function savedSession(): Session | null {
+  try {
+    const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
+    const s = key ? (JSON.parse(localStorage.getItem(key) ?? "null") as Session | null) : null;
+    return s?.user ? s : null;
+  } catch {
+    return null;
+  }
 }
 
 function NotConnected() {
@@ -33,7 +45,11 @@ function Account({ client }: { client: SupabaseClient }) {
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
-    void client.auth.getSession().then(({ data }) => setSession(data.session));
+    void client.auth.getSession().then(({ data, error }) =>
+      // With no signal an expired sign-in can't be renewed. Carry on with the one saved on the device:
+      // reads come from saved copies and changes wait in the outbox until it's renewed.
+      setSession(data.session ?? (error && isNetworkError(error) ? savedSession() : null)),
+    );
     const { data } = client.auth.onAuthStateChange((event, s) => {
       setSession(s);
       if (event === "PASSWORD_RECOVERY") setResetting(true);
@@ -109,7 +125,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
           api={api}
           hasBusiness={businesses.length > 0}
           email={session.user.email ?? ""}
-          signOut={() => void client.auth.signOut()}
+          signOut={() => void clearSavedCopies().then(() => client.auth.signOut())}
           joined={(id) => {
             setPendingInvite(false);
             choose(id);
@@ -127,7 +143,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
       current={current}
       choose={choose}
       reload={() => void load()}
-      signOut={() => void client.auth.signOut()}
+      signOut={() => void clearSavedCopies().then(() => client.auth.signOut())}
     />
   );
 }

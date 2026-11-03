@@ -98,6 +98,12 @@ describe("team", () => {
     expect(await screen.findByText("Sam Hill")).toBeTruthy();
     expect(screen.getByText(/not invited yet/)).toBeTruthy();
     const form = screen.getByRole("form", { name: "Add an engineer" });
+    // The button stays disabled until the team has finished loading.
+    await waitFor(() =>
+      expect((within(form).getByRole("button", { name: "Add engineer" }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Pat Lee" } });
     fireEvent.change(within(form).getByLabelText("Email"), { target: { value: "Pat@A.test" } });
     fireEvent.change(within(form).getByLabelText("Mobile"), { target: { value: "07700 900123" } });
@@ -140,7 +146,11 @@ describe("booking to an engineer", () => {
   it("picks the engineer from the team, and puts their name on the job", async () => {
     window.location.hash = "#/job/new?system=s1&engineer=p-sam";
     const calls = app(olivia, "owner");
-    const pick = (await screen.findByLabelText("Engineer")) as HTMLSelectElement;
+    // The form fills in its defaults once the install has loaded.
+    await waitFor(() =>
+      expect((screen.getByLabelText("Job type") as HTMLSelectElement).value).toBe("Installation"),
+    );
+    const pick = screen.getByLabelText("Engineer") as HTMLSelectElement;
     expect(pick.value).toBe("p-sam");
     fireEvent.change(pick, { target: { value: "p-ed" } });
     fireEvent.click(screen.getByRole("button", { name: "Book job" }));

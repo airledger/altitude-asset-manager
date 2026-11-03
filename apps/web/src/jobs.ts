@@ -231,6 +231,7 @@ const fail = (error: { message: string } | null): void => {
 export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
   return {
     userId,
+    orgId,
     /** Every job in the business, soonest first, with its install and client. */
     async jobs(): Promise<JobListRow[]> {
       const { data, error } = await sb

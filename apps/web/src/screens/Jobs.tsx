@@ -33,7 +33,10 @@ import {
   type JobsApi,
   type MaterialRow,
   type PersonRow,
+  type Completion,
 } from "../jobs";
+import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
+import { useOutbox } from "./Outbox";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, todayIso, unitTitle, useLoad } from "./Assets";
@@ -241,6 +244,8 @@ export function JobPage(p: {
   const mode = p.query.get("do");
   const act = useAction();
   const owner = p.business.role === "owner";
+  const { items: outbox } = useOutbox();
+  const waiting = outbox.find((i) => i.kind === "complete" && i.jobId === p.id);
 
   if (isNew)
     return (
@@ -312,6 +317,13 @@ export function JobPage(p: {
         {statusPill(j)}
       </PageHead>
       <ErrorLine error={act.error || ctx.error || record.error} />
+      {waiting && (
+        <p className="banner">
+          {waiting.error
+            ? `Completed on this phone but not saved: ${waiting.error}`
+            : `Completed on this phone at ${new Date(waiting.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. It sends by itself when there's signal.`}
+        </p>
+      )}
       <section className="card">
         <div className="pgactions">
           {j.status === "booked" && (
@@ -608,6 +620,8 @@ function BookJob(p: {
   const engineer = useLoad(() => p.jobs.defaultEngineer(), [p.jobs]);
   const people = useLoad(() => p.jobs.people(), [p.jobs]);
   const [systemId, setSystemId] = useState(j?.system_id ?? p.query.get("system") ?? "");
+  // Kept outside the form, so a choice survives the form resetting its defaults when the install loads.
+  const [picked, setPicked] = useState<string | null>(null);
   const { busy, error, run } = useAction();
   // Smart defaults: an install for a new system, otherwise an annual service a week ahead.
   const ctx = p.ctx && p.ctx.system.id === systemId ? p.ctx : null;
@@ -616,9 +630,11 @@ function BookJob(p: {
   const type = j?.type ?? p.query.get("type") ?? (isNewSystem ? "Installation" : "Annual service");
   const date = j?.date ?? p.query.get("date") ?? (isNewSystem ? todayIso() : addDays(todayIso(), 7));
   const team = people.value ?? [];
-  const engineerId = j
-    ? (j.engineer_id ?? "")
-    : (p.query.get("engineer") ?? defaultPerson(team, engineer.value ?? "", p.userId)?.id ?? "");
+  const engineerId =
+    picked ??
+    (j
+      ? (j.engineer_id ?? "")
+      : (p.query.get("engineer") ?? defaultPerson(team, engineer.value ?? "", p.userId)?.id ?? ""));
   // A job booked to someone who has since left still shows them.
   const choices = team.filter((x) => x.active || x.id === engineerId);
   const duration = j?.duration_hrs ?? (ctx ? 0.5 + 0.5 * Math.max(1, indoor) : null);
@@ -671,7 +687,7 @@ function BookJob(p: {
         <Pick name="type" label="Job type" value={type} options={JOB_TYPES} />
         <label>
           Engineer
-          <select name="engineer_id" defaultValue={engineerId}>
+          <select name="engineer_id" value={engineerId} onChange={(e) => setPicked(e.currentTarget.value)}>
             <option value="">Not assigned yet</option>
             {choices.map((x) => (
               <option key={x.id} value={x.id}>
@@ -735,15 +751,14 @@ function CompleteJob(p: {
     const f = readForm(form);
     const data = new FormData(form);
     void run(async () => {
-      const uploaded: string[] = [];
-      for (const file of photos) uploaded.push(await p.assets.uploadPhoto(file));
-      await p.jobs.complete(j.id, {
+      const kept = record.report?.photo_file_ids ?? [];
+      const completion: Completion = {
         date: f.text("date") || todayIso(),
         engineer: f.text("engineer"),
         type,
         duration_hrs: f.num("duration_hrs"),
         completion_notes: f.text("completion_notes"),
-        photo_file_ids: [...(record.report?.photo_file_ids ?? []), ...uploaded],
+        photo_file_ids: kept,
         unit_checks: ctx.units.map((u) => ({
           unit_id: u.id,
           checks: Object.keys(checks).filter((k) => data.get(`ck-${u.id}-${k}`) === "on"),
@@ -777,7 +792,26 @@ function CompleteJob(p: {
             }
           : null,
         parts_used: parts.map(toPart),
-      });
+      };
+      const label = [type, j.systems?.clients?.name].filter(Boolean).join(" · ");
+      await sendOrSave(
+        async () => {
+          const uploaded: string[] = [];
+          for (const file of photos) uploaded.push(await p.assets.uploadPhoto(file));
+          await p.jobs.complete(j.id, { ...completion, photo_file_ids: [...kept, ...uploaded] });
+        },
+        async () => {
+          // No signal: keep it on the phone and send it when the connection's back.
+          const local = await enqueuePhotos(p.jobs.orgId, label, photos);
+          await enqueue({
+            kind: "complete",
+            orgId: p.jobs.orgId,
+            label,
+            jobId: j.id,
+            completion: { ...completion, photo_file_ids: [...kept, ...local] },
+          });
+        },
+      );
       p.done();
     });
   }
