@@ -13,6 +13,8 @@ import { OrdersPage } from "./Orders";
 import { OutboxBar } from "./Outbox";
 import { RegisterPage } from "./Register";
 import { RemindersPage } from "./Reminders";
+import { ReportsPage } from "./Reports";
+import { reportsApi } from "../reports";
 import { SchedulePage } from "./Schedule";
 import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
@@ -45,7 +47,7 @@ export function readHash(hash = window.location.hash): Route {
 const tabOf = (page: string): Tab =>
   ["client", "system", "register"].includes(page)
     ? "clients"
-    : ["job", "schedule", "orders"].includes(page)
+    : ["job", "schedule", "orders", "reports"].includes(page)
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
@@ -72,6 +74,7 @@ export function Shell(props: {
     () => jobsApi(api.client, current.id, session.user.id),
     [api, current.id, session.user.id],
   );
+  const reports = useMemo(() => reportsApi(api.client, current.id), [api, current.id]);
   useEffect(() => {
     const onHash = () => {
       setRoute(readHash());
@@ -140,8 +143,11 @@ export function Shell(props: {
             query={r.query}
             business={current}
             userId={session.user.id}
+            reports={reports}
           />
         );
+      case "reports":
+        return <ReportsPage reports={reports} />;
       case "reminders":
         return <RemindersPage assets={assets} jobs={jobs} business={current} query={r.query} />;
       case "orders":
@@ -155,7 +161,9 @@ export function Shell(props: {
       case "team":
         return <Team api={api} jobs={jobs} business={current} userId={session.user.id} />;
       case "business":
-        return <BusinessSettings api={api} assets={assets} business={current} saved={reload} />;
+        return (
+          <BusinessSettings api={api} assets={assets} reports={reports} business={current} saved={reload} />
+        );
       case "stickers":
       case "labels":
         return r.arg === "design" ? (

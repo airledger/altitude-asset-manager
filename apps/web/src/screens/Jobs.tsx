@@ -11,7 +11,7 @@ import {
   systemInfo,
   type MaterialLine,
 } from "@airledger/domain";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { Business } from "../api";
 import { toDomain, toSettings, type Assets, type SystemRow, type UnitRow } from "../assets";
 import { Area, Check, Pick, readForm, Text } from "../fields";
@@ -37,6 +37,8 @@ import {
 } from "../jobs";
 import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { useOutbox } from "./Outbox";
+import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
+import type { ReportsApi } from "../reports";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, todayIso, unitTitle, useLoad } from "./Assets";
@@ -125,6 +127,10 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
         </a>
         <a className="btn" href="#/orders">
           Parts to order
+        </a>
+        <a className="btn" href="#/reports">
+          <Icon name="report" size={18} />
+          Reports
         </a>
         <a className="btn pri" href="#/job/new">
           <Icon name="plus" size={18} />
@@ -235,6 +241,7 @@ export function JobPage(p: {
   query: URLSearchParams;
   business: Business;
   userId: string;
+  reports: ReportsApi;
 }) {
   const isNew = p.id === "new";
   const job = useLoad(() => (isNew ? Promise.resolve(null) : p.jobs.job(p.id)), [p.jobs, p.id]);
@@ -246,6 +253,20 @@ export function JobPage(p: {
   const owner = p.business.role === "owner";
   const { items: outbox } = useOutbox();
   const waiting = outbox.find((i) => i.kind === "complete" && i.jobId === p.id);
+  const reportCtx = useMemo<ReportCtx | null>(
+    () =>
+      job.value && record.value && ctx.value
+        ? {
+            job: job.value,
+            record: record.value,
+            system: ctx.value.system,
+            units: ctx.value.units,
+            history: ctx.value.history,
+            settings: ctx.value.settings,
+          }
+        : null,
+    [job.value, record.value, ctx.value],
+  );
 
   if (isNew)
     return (
@@ -279,6 +300,21 @@ export function JobPage(p: {
         <BookJob {...p} job={j} ctx={ctx.value ?? null} />
       </>
     );
+  if (mode === "signoff" || mode === "send") {
+    if (j.status !== "completed") return <ErrorLine error="Complete the job first." />;
+    if (!reportCtx) return <Loading />;
+    return mode === "signoff" ? (
+      <SignOff assets={p.assets} jobs={p.jobs} reports={p.reports} business={p.business} ctx={reportCtx} />
+    ) : (
+      <SendReport
+        assets={p.assets}
+        reports={p.reports}
+        business={p.business}
+        ctx={reportCtx}
+        reportId={p.query.get("report")}
+      />
+    );
+  }
   if (mode === "complete") {
     if (!ctx.value || !record.value) return <Loading />;
     return (
@@ -294,7 +330,16 @@ export function JobPage(p: {
           job={j}
           ctx={ctx.value}
           record={record.value}
-          done={reload}
+          done={(how) => {
+            // Straight on to sign-off after a first completion; an edit goes back to the job,
+            // where the report card says if the report needs re-issuing.
+            if (how === "sent" && j.status !== "completed") {
+              go(`#/job/${j.id}?do=signoff`);
+              job.reload();
+              record.reload();
+              ctx.reload();
+            } else reload();
+          }}
         />
       </>
     );
@@ -422,6 +467,9 @@ export function JobPage(p: {
           )}
         </dl>
       </section>
+      {j.status === "completed" && reportCtx && !waiting && (
+        <ReportCard assets={p.assets} reports={p.reports} ctx={reportCtx} sentTo={p.query.get("sent")} />
+      )}
       {j.status === "completed" && record.value && ctx.value && (
         <RecordView job={j} record={record.value} units={ctx.value.units} />
       )}
@@ -726,7 +774,7 @@ function CompleteJob(p: {
   job: JobListRow;
   ctx: Ctx;
   record: JobRecord;
-  done: () => void;
+  done: (how: "sent" | "saved") => void;
 }) {
   const { job: j, ctx, record } = p;
   const wasDone = j.status === "completed";
@@ -794,7 +842,7 @@ function CompleteJob(p: {
         parts_used: parts.map(toPart),
       };
       const label = [type, j.systems?.clients?.name].filter(Boolean).join(" · ");
-      await sendOrSave(
+      const how = await sendOrSave(
         async () => {
           const uploaded: string[] = [];
           for (const file of photos) uploaded.push(await p.assets.uploadPhoto(file));
@@ -812,7 +860,7 @@ function CompleteJob(p: {
           });
         },
       );
-      p.done();
+      p.done(how);
     });
   }
 
