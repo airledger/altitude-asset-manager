@@ -120,6 +120,9 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
           <Icon name="calendar" size={18} />
           Schedule
         </a>
+        <a className="btn" href="#/orders">
+          Parts to order
+        </a>
         <a className="btn pri" href="#/job/new">
           <Icon name="plus" size={18} />
           Book a job

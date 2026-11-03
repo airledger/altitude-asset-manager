@@ -129,6 +129,36 @@ export interface RuleSettings {
   app_url: string;
 }
 
+export interface ContactLogRow {
+  id: string;
+  system_id: string;
+  date: string;
+  method: string;
+  note: string;
+}
+
+export interface ReminderSettings {
+  email_subject: string;
+  email_body: string;
+  sms_body: string;
+  phone: string;
+  default_engineer: string;
+  trading_as: string;
+}
+
+/** The live app's wording, used until a business writes its own (Business settings). */
+export const DEFAULT_TEMPLATES = {
+  email_subject: "Your air conditioning service is due – {site}",
+  email_body:
+    "Hi {contact},\n\nOur records show the air conditioning at {site} ({units}) is due its annual service on {dueDate}.\n\nRegular servicing keeps the system running efficiently, keeps the air clean and keeps your manufacturer's warranty valid.\n\nJust reply to this email or call us on {phone} and we'll book a time that suits you.\n\nKind regards,\n{engineer}\n{business}",
+  sms_body:
+    "Hi {contact}, it's {engineer} from {business}. Your air con at {site} is due its annual service ({dueDate}). Reply or call {phone} to book a time. Thanks!",
+};
+
+/** Fills {placeholders}; unknown ones are left as they are. */
+export const fillTemplate = (t: string, map: Record<string, string>) =>
+  t.replace(/\{(\w+)\}/g, (m, k: string) => map[k] ?? m);
+
 export type New<T> = Omit<T, "id"> & { id?: string | undefined };
 
 const fail = (error: { message: string } | null): void => {
@@ -439,6 +469,49 @@ export function assets(sb: SupabaseClient, orgId: string) {
         codes.push(...rows.map((r) => r.code));
         if (rows.length < 1000) return codes;
       }
+    },
+
+    /** Every unit in the business (for orders and the asset register). */
+    async allUnits(): Promise<UnitRow[]> {
+      const { data, error } = await sb.from("units").select("*").eq("org_id", orgId).order("asset_no");
+      fail(error);
+      return (data ?? []) as UnitRow[];
+    },
+
+    /** Every contact logged against an install, oldest first. */
+    async contactLogs(): Promise<ContactLogRow[]> {
+      const { data, error } = await sb
+        .from("contact_logs")
+        .select("id, system_id, date, method, note")
+        .eq("org_id", orgId)
+        .order("date")
+        .order("created_at");
+      fail(error);
+      return (data ?? []) as ContactLogRow[];
+    },
+
+    async logContact(row: Omit<ContactLogRow, "id">): Promise<void> {
+      const { error } = await sb.from("contact_logs").insert({ ...row, org_id: orgId });
+      fail(error);
+    },
+
+    /** Reminder templates and the details they fill in. */
+    async reminderSettings(): Promise<ReminderSettings> {
+      const { data, error } = await sb
+        .from("org_settings")
+        .select("email_subject, email_body, sms_body, phone, default_engineer, trading_as")
+        .eq("org_id", orgId)
+        .maybeSingle();
+      fail(error);
+      const r = (data ?? {}) as Partial<ReminderSettings>;
+      return {
+        email_subject: r.email_subject || DEFAULT_TEMPLATES.email_subject,
+        email_body: r.email_body || DEFAULT_TEMPLATES.email_body,
+        sms_body: r.sms_body || DEFAULT_TEMPLATES.sms_body,
+        phone: r.phone ?? "",
+        default_engineer: r.default_engineer ?? "",
+        trading_as: r.trading_as ?? "",
+      };
     },
 
     async ruleSettings(): Promise<RuleSettings | null> {

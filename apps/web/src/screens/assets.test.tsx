@@ -264,7 +264,7 @@ describe("stickers", () => {
     app({ systems: [{ ...system, clients: { name: "Harbour Dental" } }], clients: [client] });
     expect(await screen.findByText("Needs attention")).toBeTruthy();
     const row = await screen.findByRole("link", { name: /Harbour Dental/ });
-    expect(row.getAttribute("href")).toBe("#/system/s1");
+    expect(row.getAttribute("href")).toBe("#/reminders?open=s1");
     expect(row.textContent).toMatch(/Overdue/);
   });
 
