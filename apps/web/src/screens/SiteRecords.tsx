@@ -1,5 +1,6 @@
 import { formatDate } from "@airledger/domain";
 import { useState, type FormEvent } from "react";
+import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { SITE_RECORD_KINDS, type Assets, type SiteRecordRow, type UnitRow } from "../assets";
 import { Area, Pick, readForm, Text } from "../fields";
 import { shrinkPhoto } from "../photos";
@@ -105,9 +106,9 @@ function RecordForm(p: {
     const text = f.text("text");
     if (!text && !kept.length && !files.length) return setError("Add some notes or at least one photo.");
     void run(async () => {
-      const uploaded: string[] = [];
-      for (const file of files) uploaded.push(await p.assets.uploadPhoto(await shrinkPhoto(file)));
-      await p.assets.saveSiteRecord({
+      const shrunk: Blob[] = [];
+      for (const file of files) shrunk.push(await shrinkPhoto(file));
+      const row = {
         id: r?.id,
         system_id: p.systemId,
         unit_id: f.orNull("unit_id"),
@@ -115,8 +116,25 @@ function RecordForm(p: {
         date: f.text("date") || todayIso(),
         author: f.text("author"),
         text,
-        photo_file_ids: [...kept, ...uploaded],
-      });
+        photo_file_ids: kept,
+      };
+      const label = f.text("kind") || "Site record";
+      await sendOrSave(
+        async () => {
+          const uploaded: string[] = [];
+          for (const b of shrunk) uploaded.push(await p.assets.uploadPhoto(b));
+          await p.assets.saveSiteRecord({ ...row, photo_file_ids: [...kept, ...uploaded] });
+        },
+        async () => {
+          const local = await enqueuePhotos(p.assets.orgId, label, shrunk);
+          await enqueue({
+            kind: "siteRecord",
+            orgId: p.assets.orgId,
+            label,
+            row: { ...row, photo_file_ids: [...kept, ...local] },
+          });
+        },
+      );
       p.done();
     });
   }

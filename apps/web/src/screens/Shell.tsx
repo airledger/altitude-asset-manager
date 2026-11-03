@@ -10,6 +10,7 @@ import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
 import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
 import { OrdersPage } from "./Orders";
+import { OutboxBar } from "./Outbox";
 import { RegisterPage } from "./Register";
 import { RemindersPage } from "./Reminders";
 import { SchedulePage } from "./Schedule";
@@ -94,6 +95,7 @@ export function Shell(props: {
         </nav>
       }
     >
+      <OutboxBar client={api.client} />
       <div className="page" key={current.id + route.page + route.arg}>
         {page(route)}
       </div>

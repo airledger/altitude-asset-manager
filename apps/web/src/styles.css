@@ -1466,3 +1466,50 @@ input.qtyin {
 .table th.qty {
   font-family: inherit;
 }
+
+/* ---------- offline and the outbox ---------- */
+.outbox {
+  margin: 12px auto 0;
+  max-width: var(--maxw, 1200px);
+  width: calc(100% - 32px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--brand-l);
+  color: var(--brand-d);
+  font-size: 14px;
+  font-weight: 500;
+}
+.outbox.off {
+  background: var(--amber-l);
+  color: var(--amber);
+}
+.outbox.bad {
+  background: var(--red-l);
+  color: var(--red);
+}
+.outbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.outbox-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  color: var(--ink);
+}
+.outbox-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.outbox-list .err {
+  color: var(--red);
+  font-size: 13px;
+}

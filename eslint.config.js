@@ -9,7 +9,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.strict,
   {
-    files: ["worker/**/*.js"],
+    files: ["worker/**/*.js", "apps/web/public/sw.js"],
     languageOptions: { globals: globals.serviceworker },
   },
   {

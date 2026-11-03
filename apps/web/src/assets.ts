@@ -214,6 +214,7 @@ export function assets(sb: SupabaseClient, orgId: string) {
   }
 
   return {
+    orgId,
     async clients(): Promise<(ClientRow & { systems: { count: number }[] })[]> {
       const { data, error } = await sb
         .from("clients")

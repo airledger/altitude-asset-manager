@@ -7,6 +7,8 @@ export function fakeSupabase(opts: {
   signedInAs?: { id: string; email: string };
   tables?: Record<string, unknown[]>;
   rpc?: Record<string, unknown>;
+  /** RPCs that fail with this message. */
+  rpcErrors?: Record<string, string>;
 }) {
   const calls: Call[] = [];
   const session = opts.signedInAs ? { user: opts.signedInAs } : null;
@@ -60,6 +62,8 @@ export function fakeSupabase(opts: {
     },
     rpc: (name: string, args: unknown) => {
       calls.push({ kind: "rpc", name, args });
+      const err = opts.rpcErrors?.[name];
+      if (err) return Promise.resolve({ data: null, error: { message: err } });
       return result(opts.rpc?.[name] ?? null);
     },
     from: query,

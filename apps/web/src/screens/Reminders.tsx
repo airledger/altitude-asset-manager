@@ -7,6 +7,7 @@ import type { Business } from "../api";
 import type { Assets } from "../assets";
 import { Icon } from "../icons";
 import type { JobsApi } from "../jobs";
+import { enqueue, sendOrSave } from "../outbox";
 import { loadOverview, reminderMessages, type Overview, type SiteView } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
@@ -134,7 +135,17 @@ function Contact(p: {
   const copy = (t: string) => void navigator.clipboard?.writeText(t);
   const log = (thenBook: boolean) =>
     void run(async () => {
-      await p.assets.logContact({ system_id: p.site.system.id, date: todayIso(), method, note: note.trim() });
+      const row = { system_id: p.site.system.id, date: todayIso(), method, note: note.trim() };
+      await sendOrSave(
+        () => p.assets.logContact(row),
+        () =>
+          enqueue({
+            kind: "contact",
+            orgId: p.business.id,
+            label: p.site.client?.name ?? p.site.system.name,
+            row,
+          }),
+      );
       if (thenBook) go(`#/job/new?system=${p.site.system.id}`);
       else p.done();
     });
