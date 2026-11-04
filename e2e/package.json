@@ -1,0 +1,9 @@
+{
+  "name": "airledger-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests against beta. Not a workspace: CI installs @playwright/test on its own.",
+  "scripts": {
+    "test": "playwright test"
+  }
+}

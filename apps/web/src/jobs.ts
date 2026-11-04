@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Job, Material, MaterialLine, Unit } from "@airledger/domain";
 import type { New, UnitRow } from "./assets";
+import { appOrigin } from "./native";
 
 export const CHECKS = {
   filters: "Filters cleaned or replaced",
@@ -96,7 +97,7 @@ export interface PersonRow {
 }
 
 /** Everyone, or the people a feed is for: the calendar app links for a calendar feed. */
-export function calendarUrls(token: string, name: string, origin = window.location.origin) {
+export function calendarUrls(token: string, name: string, origin = appOrigin()) {
   const https = `${origin}/cal/${token}.ics`;
   const webcal = https.replace(/^https?:/, "webcal:");
   return {
@@ -229,6 +230,16 @@ const fail = (error: { message: string } | null): void => {
 
 /** userId is the signed-in user, for "my" jobs and calendar. */
 export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
+  /**
+   * Emails the engineer a calendar invite, an update or a cancellation for the job, so it's in their own
+   * calendar without any setup. Runs in the background: a failed email never stops the booking.
+   */
+  function invite(jobId: string) {
+    void Promise.resolve()
+      .then(() => sb.functions.invoke("job-invite", { body: { job: jobId } }))
+      .then((r) => r?.error && console.warn("Calendar invite not sent", r.error))
+      .catch((e: unknown) => console.warn("Calendar invite not sent", e));
+  }
   return {
     userId,
     orgId,
@@ -275,7 +286,9 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
             .single();
       const { data, error } = await q;
       fail(error);
-      return (data as { id: string }).id;
+      const saved = (data as { id: string }).id;
+      invite(saved);
+      return saved;
     },
 
     /** Reschedule: a new date, and optionally a new engineer (from dragging on the schedule). */
@@ -283,11 +296,13 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
       const fields = engineer ? { date, engineer_id: engineer.id, engineer: engineer.name } : { date };
       const { error } = await sb.from("jobs").update(fields).eq("id", id).eq("org_id", orgId);
       fail(error);
+      invite(id);
     },
 
     async setStatus(id: string, status: JobRow["status"]): Promise<void> {
       const { error } = await sb.from("jobs").update({ status }).eq("id", id).eq("org_id", orgId);
       fail(error);
+      invite(id);
     },
 
     /** Owner only (the database refuses anyone else). */
@@ -300,6 +315,7 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
         .select("id");
       fail(error);
       if (Array.isArray(data) && data.length === 0) throw new Error("Only an owner can delete a job.");
+      invite(id);
     },
 
     /** What was recorded on a job: unit checks, leak check or commissioning, and parts. */

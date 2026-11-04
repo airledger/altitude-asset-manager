@@ -2,7 +2,9 @@
 import type { DueStatus } from "@airledger/domain";
 import type { Business } from "../api";
 import type { Assets } from "../assets";
+import { useEffect } from "react";
 import { Icon } from "../icons";
+import { scheduleReminders } from "../native";
 import type { JobsApi } from "../jobs";
 import { jobsToOrder, loadOverview } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
@@ -32,6 +34,10 @@ export function Home(p: {
   );
   const o = data.value?.[0];
   const me = data.value?.[1] ?? null;
+  // In the phone apps, 8am service-due and leak-check notifications are planned from this load.
+  useEffect(() => {
+    if (o) void scheduleReminders(o, o.leadDays);
+  }, [o]);
   const owner = p.current.role === "owner";
   const rows = (o?.sites ?? []).map((x) => ({
     s: { ...x.system, clients: x.client },
@@ -183,6 +189,10 @@ export function Home(p: {
       </div>
       <p className="signed">
         Signed in as <b>{p.email}</b> ·{" "}
+        <a className="link" href="#/account">
+          Your account
+        </a>{" "}
+        ·{" "}
         <button className="link" onClick={p.signOut}>
           Sign out
         </button>

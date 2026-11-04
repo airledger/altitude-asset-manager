@@ -149,6 +149,10 @@ describe("jobs", () => {
       engineer_id: "p-ed",
       org_id: "org-a",
     });
+    // The engineer gets a calendar invite for it.
+    await waitFor(() =>
+      expect(calls.find((c) => c.name === "fn.job-invite")?.args).toEqual({ body: { job: "new-jobs" } }),
+    );
   });
 
   it("shows the job with its units and the parts to take", async () => {
@@ -223,6 +227,8 @@ describe("jobs", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Delete job" }));
     await waitFor(() => expect(calls.some((c) => c.name === "jobs.update")).toBe(true));
     expect((calls.find((c) => c.name === "jobs.update")?.args as unknown[])[0]).toHaveProperty("deleted_at");
+    // ...and it comes out of the engineer's calendar.
+    await waitFor(() => expect(calls.some((c) => c.name === "fn.job-invite")).toBe(true));
   });
 
   it("marks parts ordered, freezing the list", async () => {

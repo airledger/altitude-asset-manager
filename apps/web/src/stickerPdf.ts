@@ -1,6 +1,7 @@
 // The print-ready PDF for the sticker manufacturer: one sticker per page at its real size, with 2 mm bleed.
 // jsPDF is loaded only when it's needed, so it doesn't slow down the rest of the app.
 import type { jsPDF } from "jspdf";
+import { isNative, shareFile } from "./native";
 import {
   layoutSticker,
   qrRuns,
@@ -181,6 +182,10 @@ export async function stickerPdf(
 }
 
 export function download(blob: Blob, name: string) {
+  if (isNative()) {
+    shareFile(blob, name).catch((e: unknown) => alert(`Couldn't share the file: ${String(e)}`));
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;

@@ -1,0 +1,69 @@
+# End-to-end test of the whole app on beta: a real browser signs in to the beta site and uses every main
+# part of Air Ledger against the beta database, on desktop Chrome and an iPhone-sized Safari.
+# Test accounts are made fresh each run and removed afterwards. Never touches production.
+# Results: the run's "e2e-report" artifact (open index.html) has a screenshot of every step.
+name: End-to-end test (beta)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Update beta database"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency: e2e-beta
+
+env:
+  BETA_REF: besbuksxoyxkvaynzvax
+  E2E_URL: https://airledger-beta.lingering-grass-c687.workers.dev
+  E2E_OWNER: delivered+e2e-owner@resend.dev
+  E2E_ENGINEER: delivered+e2e-engineer@resend.dev
+
+jobs:
+  e2e:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - name: Make the test accounts on beta
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
+        run: |
+          SUPABASE_DB_PASSWORD="$PGPASSWORD" supabase link --project-ref "$BETA_REF" >/dev/null
+          BETA_URL=$(cat supabase/.temp/pooler-url)
+          case "$BETA_URL" in *"$BETA_REF"*) ;; *) echo "::error::Beta address doesn't match"; exit 1;; esac
+          echo "BETA_URL=$BETA_URL" >> "$GITHUB_ENV"
+          PW=$(openssl rand -hex 16)
+          echo "::add-mask::$PW"
+          echo "E2E_PASSWORD=$PW" >> "$GITHUB_ENV"
+          psql "$BETA_URL" -X -q -v pw="$PW" -v owner="$E2E_OWNER" -v engineer="$E2E_ENGINEER" -f e2e/setup.sql
+      - name: Install the test browsers
+        working-directory: e2e
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.63.0
+          npx playwright install --with-deps chromium webkit
+      - name: Give Cloudflare time to finish deploying the site
+        if: github.event_name == 'workflow_run'
+        run: sleep 150
+      - name: Use the app
+        working-directory: e2e
+        run: npx playwright test
+      - name: Remove the test accounts
+        if: always()
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
+        run: psql "$BETA_URL" -X -q -v owner="$E2E_OWNER" -v engineer="$E2E_ENGINEER" -f e2e/cleanup.sql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: e2e/report

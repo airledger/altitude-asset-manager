@@ -168,7 +168,33 @@ export function api(sb: SupabaseClient) {
       const { error } = await sb.rpc("make_owner", { p_org: orgId, p_user: userId });
       fail(error);
     },
+
+    /** Businesses that go with the account (ones only this user belongs to). Fails if they'd leave a team ownerless. */
+    async deletionPlan(): Promise<{ org_id: string; name: string }[]> {
+      const { data, error } = await sb.rpc("account_deletion_plan");
+      fail(error);
+      return (data ?? []) as { org_id: string; name: string }[];
+    },
+
+    /** Deletes the account (and businesses only it belongs to), files included, on the server. */
+    async deleteAccount(): Promise<void> {
+      await removeOnServer({ account: true });
+    },
+
+    /** Deletes a business with all its records, photos and reports. Owners only. */
+    async deleteBusiness(orgId: string): Promise<void> {
+      await removeOnServer({ business: orgId });
+    },
   };
+
+  async function removeOnServer(body: Record<string, unknown>) {
+    const { error } = await sb.functions.invoke("delete-account", { body });
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      const out = ctx && typeof ctx.json === "function" ? await ctx.json().catch(() => null) : null;
+      throw new Error((out as { error?: string } | null)?.error || error.message);
+    }
+  }
 }
 
 export type Api = ReturnType<typeof api>;

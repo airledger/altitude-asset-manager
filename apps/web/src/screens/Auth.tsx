@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, type InviteInfo } from "../api";
 import { keys, local } from "../local";
 import { ErrorLine, useAction } from "../useAction";
+import { appOrigin } from "../native";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -136,7 +137,7 @@ function SignUp({
       const { data, error: err } = await client.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: appOrigin() },
       });
       if (err) throw err;
       // With email confirmation on there's no session yet: they confirm, then sign in, and the invite is still waiting.
@@ -189,7 +190,7 @@ function Forgot({ client, setMode }: { client: SupabaseClient; setMode: (m: Mode
     const email = field(new FormData(e.currentTarget), "email");
     void run(async () => {
       const { error: err } = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
+        redirectTo: appOrigin(),
       });
       if (err) throw err;
       setSent(true);

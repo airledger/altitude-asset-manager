@@ -5,6 +5,7 @@ import type { Business } from "../api";
 import type { Assets } from "../assets";
 import { Icon } from "../icons";
 import { openPrintWindow, stickerSheetHtml } from "../print";
+import { isNative, scanCode } from "../native";
 import { decodePhoto } from "../scan";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
@@ -37,12 +38,41 @@ function useScan() {
     }
     return false;
   }
-  return { reading, error, setError, photo };
+  /** The phone apps scan live with the camera instead of taking a photo. */
+  async function live(): Promise<boolean> {
+    setError("");
+    try {
+      const raw = await scanCode();
+      if (raw === null) return true;
+      const code = parseScan(raw);
+      if (code) {
+        go(`#/u/${code}`);
+        return true;
+      }
+      setError("That QR code isn't an Air Ledger asset label. Type the code instead.");
+    } catch {
+      setError("Couldn't open the camera. Allow camera access for Air Ledger in Settings, or type the code.");
+    }
+    return false;
+  }
+  return { reading, error, setError, photo, live };
 }
 
 /** The Scan button in the header. If the photo can't be read, the Stickers page says why. */
 export function ScanButton() {
   const scan = useScan();
+  if (isNative())
+    return (
+      <button
+        type="button"
+        className="scanbtn"
+        aria-label="Scan an asset label with the camera"
+        onClick={() => void scan.live().then((ok) => ok || go("#/labels?unread=1"))}
+      >
+        <Icon name="scan" size={18} />
+        <span>Scan</span>
+      </button>
+    );
   return (
     <label className="scanbtn">
       <Icon name="scan" size={18} />
@@ -88,18 +118,25 @@ export function ScanBox({ unread = false }: { unread?: boolean }) {
         </div>
       </div>
       <ErrorLine error={error} />
-      <label className="btn air wide">
-        <Icon name="scan" />
-        {scan.reading ? "Reading…" : "Scan a label"}
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          aria-label="Photo of an asset label"
-          onChange={(e) => void scan.photo(e.currentTarget.files?.[0])}
-        />
-      </label>
+      {isNative() ? (
+        <button type="button" className="btn air wide" onClick={() => void scan.live()}>
+          <Icon name="scan" />
+          Scan a label
+        </button>
+      ) : (
+        <label className="btn air wide">
+          <Icon name="scan" />
+          {scan.reading ? "Reading…" : "Scan a label"}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            aria-label="Photo of an asset label"
+            onChange={(e) => void scan.photo(e.currentTarget.files?.[0])}
+          />
+        </label>
+      )}
       <div className="or">
         <span>or type the code</span>
       </div>
@@ -124,6 +161,7 @@ export function BlankStickers({ assets, business }: { assets: Assets; business: 
   function print() {
     const win = openPrintWindow();
     void run(async () => {
+      if (isNative()) return win.show(""); // explains that sheets print from a computer, before reserving codes
       try {
         const codes = await assets.reserveStickers(sheets * 21);
         win.show(stickerSheetHtml(codes, readDesign(profile.value?.sticker_design), brand, link));

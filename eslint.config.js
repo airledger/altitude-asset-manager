@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   // The live app at the repo root and the edge function (Deno) are linted separately after the rebuild.
-  { ignores: ["**/dist/**", "**/node_modules/**", "*.js", "!eslint.config.js", "supabase/functions/**", "coverage/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "*.js", "!eslint.config.js", "supabase/functions/**", "coverage/**", "apps/mobile/android/**", "apps/mobile/ios/**"] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   {

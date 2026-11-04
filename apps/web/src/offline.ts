@@ -4,6 +4,7 @@
 //
 // The copy lives in the browser's Cache Storage under the signed-in user's id, and is cleared on sign-out.
 
+import { isNative } from "./native";
 const CACHE = "airledger-data-v1";
 const listeners = new Set<() => void>();
 let usingCopy = false;
@@ -76,7 +77,8 @@ export async function clearSavedCopies() {
 
 /** Registers the service worker that keeps the app itself on the device. */
 export function registerAppCache() {
-  if (!("serviceWorker" in navigator) || !import.meta.env.PROD) return;
+  // The phone apps carry their own copy of the files, so they need no service worker.
+  if (!("serviceWorker" in navigator) || !import.meta.env.PROD || isNative()) return;
   window.addEventListener(
     "load",
     () => void navigator.serviceWorker.register("/sw.js").catch(() => undefined),
