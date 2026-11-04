@@ -55,7 +55,18 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   const biz = phone ? "E2E Phone Cooling" : "E2E Desktop Cooling";
   const step = (name: string, fn: () => Promise<void>) =>
     test.step(name, async () => {
-      await fn();
+      try {
+        await fn();
+      } catch (e) {
+        // What was on screen, as text, so the run's log says why without opening the report.
+        console.log(
+          `--- ${name}: ${page.url()}\n${await page
+            .locator("body")
+            .ariaSnapshot()
+            .catch(() => "")}`,
+        );
+        throw e;
+      }
       await snap(page, info, name);
     });
   let clientId = "";
@@ -141,7 +152,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Book a service for the engineer (they're emailed a calendar invite)", async () => {
     await open(page, `#/job/new?system=${systemId}`);
-    await page.getByLabel("Engineer", { exact: true }).selectOption({ label: "Eddie Engineer" });
+    await page.locator('select[name="engineer_id"]').selectOption({ label: "Eddie Engineer" });
     await page.getByLabel("Time (optional)", { exact: true }).fill("09:30");
     await page.getByRole("button", { name: "Book job" }).click();
     await expect(page).toHaveURL(/#\/job\/[0-9a-f-]{36}/);
