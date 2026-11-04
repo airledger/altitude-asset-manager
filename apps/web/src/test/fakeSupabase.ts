@@ -60,7 +60,7 @@ export function fakeSupabase(opts: {
         calls.push({ kind: "auth", name: "reset", args: email }),
         result({})
       ),
-      signOut: () => result({}),
+      signOut: () => (calls.push({ kind: "auth", name: "signOut" }), result({})),
     },
     rpc: (name: string, args: unknown) => {
       calls.push({ kind: "rpc", name, args });

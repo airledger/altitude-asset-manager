@@ -4,10 +4,11 @@ import { Text, readForm } from "../fields";
 import type { JobsApi, PersonRow } from "../jobs";
 import { PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
+import { appOrigin } from "../native";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-export function inviteLink(code: string, origin = window.location.origin) {
+export function inviteLink(code: string, origin = appOrigin()) {
   return `${origin}/?invite=${encodeURIComponent(code)}`;
 }
 

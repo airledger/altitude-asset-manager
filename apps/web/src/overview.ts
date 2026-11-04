@@ -42,6 +42,8 @@ export interface Overview {
   jobs: JobListRow[];
   materials: MaterialRow[];
   templates: ReminderSettings;
+  /** How many days before a service is due it shows as coming up. */
+  leadDays: number;
   today: string;
 }
 
@@ -84,7 +86,14 @@ export async function loadOverview(assets: Assets, jobs: JobsApi, today: string)
       status: dueStatus(sys, info, settings, today),
     };
   });
-  return { sites, jobs: jobRows, materials, templates, today };
+  return {
+    sites,
+    jobs: jobRows,
+    materials,
+    templates,
+    leadDays: Number(settings.reminderLeadDays) || 30,
+    today,
+  };
 }
 
 /** The reminder email and text for an install, from the business's templates. */

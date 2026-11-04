@@ -1,0 +1,57 @@
+# Builds the phone apps (apps/mobile) from the beta web app on every change.
+# Android: an installable test app (debug APK). Download "air-ledger-android-beta" from the run's Artifacts.
+# iPhone: a simulator build with no signing, to prove it still builds. Putting it on a real iPhone needs
+# TestFlight (Apple Developer account) or Xcode on a Mac; see apps/mobile/README.md.
+name: Phone apps
+
+on:
+  pull_request:
+    paths: ["apps/**", "packages/**", "package-lock.json", ".github/workflows/phone-apps.yml"]
+  push:
+    branches: [main]
+    paths: ["apps/**", "packages/**", "package-lock.json", ".github/workflows/phone-apps.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android test app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build:beta -w @airledger/mobile -- android
+      - run: ./gradlew assembleDebug --no-daemon
+        working-directory: apps/mobile/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: air-ledger-android-beta
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios:
+    name: iPhone build check
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:beta -w @airledger/mobile -- ios
+      - run: xcodebuild -version
+      - run: >
+          xcodebuild -project apps/mobile/ios/App/App.xcodeproj -scheme App -configuration Debug
+          -sdk iphonesimulator -destination "generic/platform=iOS Simulator"
+          CODE_SIGNING_ALLOWED=NO build | tail -50; exit "${PIPESTATUS[0]}"
+        shell: bash

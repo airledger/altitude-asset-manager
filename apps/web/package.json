@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@airledger/domain": "*",
+    "@capacitor/core": "8.6.0",
     "@supabase/supabase-js": "^2.118.0",
     "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",

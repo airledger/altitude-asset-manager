@@ -6,6 +6,7 @@ import { jobsApi } from "../jobs";
 import { Icon, type IconName } from "../icons";
 import { Frame } from "../ui";
 import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
+import { AccountPage } from "./Account";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
 import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
@@ -56,7 +57,7 @@ const tabOf = (page: string): Tab =>
         ? "labels"
         : page === "invoice" || page === "pricing"
           ? "invoices"
-          : page === "team" || page === "materials"
+          : page === "team" || page === "materials" || page === "account"
             ? "business"
             : page in tabs
               ? page
@@ -189,6 +190,8 @@ export function Shell(props: {
         return <SchedulePage jobs={jobs} business={current} query={r.query} />;
       case "materials":
         return <MaterialsPage jobs={jobs} business={current} />;
+      case "account":
+        return <AccountPage api={api} email={session.user.email ?? ""} signOut={signOut} />;
       case "team":
         return <Team api={api} jobs={jobs} business={current} userId={session.user.id} />;
       case "business":

@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Job, Material, MaterialLine, Unit } from "@airledger/domain";
 import type { New, UnitRow } from "./assets";
+import { appOrigin } from "./native";
 
 export const CHECKS = {
   filters: "Filters cleaned or replaced",
@@ -96,7 +97,7 @@ export interface PersonRow {
 }
 
 /** Everyone, or the people a feed is for: the calendar app links for a calendar feed. */
-export function calendarUrls(token: string, name: string, origin = window.location.origin) {
+export function calendarUrls(token: string, name: string, origin = appOrigin()) {
   const https = `${origin}/cal/${token}.ics`;
   const webcal = https.replace(/^https?:/, "webcal:");
   return {

@@ -8,6 +8,8 @@ import { PROFILE_FIELDS, type Assets, type ProfileField } from "../assets";
 import { Area, Text } from "../fields";
 import { ErrorLine, useAction } from "../useAction";
 import { useLoad } from "./Assets";
+import { appOrigin } from "../native";
+import { DeleteBusiness } from "./Account";
 
 /** Team and the materials catalogue live under Business. */
 function BusinessLinks() {
@@ -89,7 +91,7 @@ export function BusinessSettings({
     void run(async () => setLogoUrl(await api.uploadLogo(business.id, file)));
   }
 
-  const link = business.slug ? `${window.location.origin}/?b=${business.slug}` : "";
+  const link = business.slug ? `${appOrigin()}/?b=${business.slug}` : "";
   return (
     <>
       <PageHead title="Business" sub="Your name, sign-in link and logo" />
@@ -124,6 +126,7 @@ export function BusinessSettings({
       </form>
       <ProfileForm assets={assets} />
       {business.role === "owner" && <ReportSettingsForm reports={reports} />}
+      <DeleteBusiness api={api} business={business} done={saved} />
     </>
   );
 }

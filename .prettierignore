@@ -12,3 +12,5 @@ coverage
 package-lock.json
 manifest.json
 CNAME
+apps/mobile/android
+apps/mobile/ios

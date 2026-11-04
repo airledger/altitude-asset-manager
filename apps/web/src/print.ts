@@ -5,6 +5,7 @@ import { fgas, formatDate } from "@airledger/domain";
 import qrcode from "qrcode-generator";
 import type { SystemRow, UnitRow } from "./assets";
 import { artworkSvg, layoutSticker, roughMeasure, type StickerBrand, type StickerDesign } from "./sticker";
+import { appOrigin, isNative } from "./native";
 
 export interface PrintBrand {
   businessName: string;
@@ -20,7 +21,7 @@ const esc = (s: unknown) =>
   );
 
 export function unitLink(code: string, appUrl = ""): string {
-  const base = (appUrl || window.location.origin).replace(/#.*$/, "").replace(/\/+$/, "");
+  const base = (appUrl || appOrigin()).replace(/#.*$/, "").replace(/\/+$/, "");
   return `${base}/u/${code}`;
 }
 
@@ -114,9 +115,14 @@ export function labelSheetHtml(
  * then `show(html)` once the sheet is ready.
  */
 export function openPrintWindow() {
-  const w = window.open("", "_blank");
+  // The phone apps can't open a print window; sheets are printed from a computer.
+  const w = isNative() ? null : window.open("", "_blank");
   return {
     show(html: string) {
+      if (isNative())
+        throw new Error(
+          `Print label sheets from a computer: sign in at ${appOrigin().replace(/^https?:\/\//, "")}.`,
+        );
       if (!w)
         throw new Error("Your browser blocked the print window. Allow pop-ups for this site and try again.");
       w.document.open();
