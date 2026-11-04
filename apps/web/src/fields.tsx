@@ -38,6 +38,8 @@ export function Pick(p: {
   value?: string | null | undefined;
   options: Opt;
   blank?: string;
+  /** Shown instead of the stored value. */
+  labels?: Record<string, string>;
 }) {
   return (
     <label>
@@ -45,7 +47,9 @@ export function Pick(p: {
       <select name={p.name} defaultValue={p.value ?? ""}>
         {p.blank !== undefined && <option value="">{p.blank}</option>}
         {p.options.map((o) => (
-          <option key={o}>{o}</option>
+          <option key={o} value={o}>
+            {p.labels?.[o] ?? o}
+          </option>
         ))}
       </select>
     </label>

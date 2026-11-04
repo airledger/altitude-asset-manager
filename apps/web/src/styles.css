@@ -1554,3 +1554,45 @@ input.qtyin {
 .signoff .check + .sigpad {
   margin-top: 6px;
 }
+
+/* ---------- invoices ---------- */
+.rows.invoices .item {
+  gap: 10px;
+}
+.rows.invoices input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+}
+.amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.grid3 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+}
+.table.lines input {
+  width: 100%;
+  min-width: 70px;
+}
+.table.lines td:first-child input {
+  min-width: 220px;
+}
+.table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.facts.totals {
+  max-width: 280px;
+  margin-left: auto;
+}
+.facts.totals dd {
+  text-align: right;
+}
