@@ -349,10 +349,10 @@ function CalendarLinks(p: {
   business: Business;
 }) {
   const choices: { id: string | null; name: string }[] = [
+    ...(p.owner ? [{ id: null, name: "Everyone's jobs" }] : []),
     ...(p.me ? [{ id: p.me.id, name: "My jobs" }] : []),
     ...(p.owner
       ? [
-          { id: null, name: "Everyone's jobs" },
           ...p.team
             .filter((x) => x.active && x.id !== p.me?.id)
             .map((x) => ({ id: x.id, name: x.name || x.email })),
@@ -371,10 +371,15 @@ function CalendarLinks(p: {
 
   return (
     <section className="card">
-      <h2>Put jobs in your calendar</h2>
+      <h2>Jobs in your calendar</h2>
       <p className="note">
-        Subscribe once and new, moved and cancelled jobs show up in your phone's calendar by themselves. Apple
-        Calendar checks about every hour; Google and Outlook can take a few hours.
+        Every engineer is emailed a calendar invite when a job is booked for them, so it goes straight into
+        their iPhone, Google or Outlook calendar. Moving, reassigning or cancelling the job updates it there
+        too. Nothing to set up: just make sure their email is right on the Team page.
+      </p>
+      <p className="note">
+        Want a whole calendar of jobs as well, such as everyone's for the office? Subscribe to a link below.
+        Apple Calendar checks it about every hour; Google and Outlook can take a few hours.
       </p>
       <ErrorLine error={error} />
       {choices.length > 1 && (

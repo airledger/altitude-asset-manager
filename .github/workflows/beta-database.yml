@@ -46,7 +46,7 @@ jobs:
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
           supabase db push --include-all
-      # Server functions (send-report emails service reports; delete-account deletes a business or account and its files). Its RESEND_API_KEY secret is set once in the
+      # Server functions (send-report emails service reports; delete-account deletes a business or account and its files; job-invite emails engineers calendar invites). Its RESEND_API_KEY secret is set once in the
       # beta project's dashboard (Edge Functions → Secrets), never here; without it emailing says it isn't set up.
       - if: steps.ready.outputs.ok == 'true'
         env:
@@ -54,3 +54,4 @@ jobs:
         run: |
           supabase functions deploy send-report --project-ref "$SUPABASE_PROJECT_REF" --use-api
           supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy job-invite --project-ref "$SUPABASE_PROJECT_REF" --use-api
