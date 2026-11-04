@@ -153,6 +153,8 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   await step("Book a service for the engineer (they're emailed a calendar invite)", async () => {
     await open(page, `#/job/new?system=${systemId}`);
     await page.locator('select[name="engineer_id"]').selectOption({ label: "Eddie Engineer" });
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await page.getByLabel("Date", { exact: true }).fill(tomorrow);
     await page.getByLabel("Time (optional)", { exact: true }).fill("09:30");
     const invited = page.waitForResponse((r) => r.url().includes("/functions/v1/job-invite"));
     await page.getByRole("button", { name: "Book job" }).click();
@@ -167,7 +169,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   });
 
   await step("See it on the schedule, and the calendar link works", async () => {
-    await open(page, "#/schedule");
+    await open(page, "#/schedule?view=agenda");
     await expect(page.getByText(/Annual service/).first()).toBeVisible();
     await page.getByRole("button", { name: "Get calendar link" }).click();
     const link = await page.getByLabel("Calendar link", { exact: true }).inputValue();
@@ -261,7 +263,10 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/saved on this phone|waiting to send/).first()).toBeVisible();
     await page.context().setOffline(false);
-    await expect(page.getByText(/waiting to send|saved on this phone/)).toHaveCount(0, { timeout: 60_000 });
+    await expect(page.getByText(/No signal|waiting to send/)).toHaveCount(0, { timeout: 60_000 });
+    // The note reached the server: it's there after opening the install afresh.
+    await page.reload();
+    await expect(page.getByText("Written with no signal").first()).toBeVisible({ timeout: 30_000 });
   });
 
   if (!phone)
