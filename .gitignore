@@ -7,3 +7,5 @@ coverage/
 !apps/web/.env.beta
 supabase/.temp/
 supabase/.branches/
+e2e/report/
+e2e/test-results/
