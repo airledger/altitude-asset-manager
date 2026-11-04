@@ -1,6 +1,6 @@
 # Builds the phone apps (apps/mobile) from the beta web app on every change.
 # Android: an installable test app (debug APK). Download "air-ledger-android-beta" from the run's Artifacts.
-# iPhone: a simulator build with no signing, to prove it still builds. Putting it on a real iPhone needs
+# iPhone: a simulator build with no signing, to prove it still builds (started by hand). Putting it on a real iPhone needs
 # TestFlight (Apple Developer account) or Xcode on a Mac; see apps/mobile/README.md.
 name: Phone apps
 
@@ -38,8 +38,11 @@ jobs:
           name: air-ledger-android-beta
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
+  # GitHub hasn't been giving this repository Mac machines, so the iPhone check only runs when started by hand
+  # (Actions → Phone apps → Run workflow). The real iPhone build is done in Xcode on a Mac (see apps/mobile/README.md).
   ios:
     name: iPhone build check
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
