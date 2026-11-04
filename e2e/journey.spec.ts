@@ -7,7 +7,8 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PW = process.env.E2E_PASSWORD ?? "";
-const OWNER = process.env.E2E_OWNER ?? "";
+// Each run (desktop, iPhone) has its own owner account, so one stopping early never trips up the other.
+const ownerFor = (project: string) => (process.env.E2E_OWNER ?? "").replace("@", `-${project}@`);
 const ENGINEER = process.env.E2E_ENGINEER ?? "";
 const INBOX = "delivered@resend.dev";
 
@@ -45,8 +46,12 @@ const idFrom = (page: Page, kind: string) => {
 };
 
 test("a business's week in Air Ledger", async ({ page, browser }, info) => {
-  test.skip(!PW || !OWNER || !ENGINEER, "E2E_PASSWORD, E2E_OWNER and E2E_ENGINEER are needed");
+  test.skip(
+    !PW || !process.env.E2E_OWNER || !ENGINEER,
+    "E2E_PASSWORD, E2E_OWNER and E2E_ENGINEER are needed",
+  );
   const phone = info.project.name === "iphone";
+  const OWNER = ownerFor(info.project.name);
   const biz = phone ? "E2E Phone Cooling" : "E2E Desktop Cooling";
   const step = (name: string, fn: () => Promise<void>) =>
     test.step(name, async () => {
@@ -80,9 +85,9 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await form.getByLabel("Name").fill("Eddie Engineer");
     await form.getByLabel("Email").fill(ENGINEER);
     await form.getByRole("button", { name: "Add engineer" }).click();
-    await expect(page.getByLabel("Invite link")).toBeVisible();
+    await expect(page.getByLabel("Invite link", { exact: true })).toBeVisible();
   });
-  const invite = await page.getByLabel("Invite link").inputValue();
+  const invite = await page.getByLabel("Invite link", { exact: true }).inputValue();
   expect(invite).toContain("invite=");
 
   await step("Add a client", async () => {
