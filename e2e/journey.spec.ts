@@ -154,9 +154,16 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await open(page, `#/job/new?system=${systemId}`);
     await page.locator('select[name="engineer_id"]').selectOption({ label: "Eddie Engineer" });
     await page.getByLabel("Time (optional)", { exact: true }).fill("09:30");
+    const invited = page.waitForResponse((r) => r.url().includes("/functions/v1/job-invite"));
     await page.getByRole("button", { name: "Book job" }).click();
     await expect(page).toHaveURL(/#\/job\/[0-9a-f-]{36}/);
     jobId = idFrom(page, "job");
+    // The server's answer says whether the invite email went out.
+    const res = await invited;
+    const body = await res.text();
+    console.log(`job-invite ${res.status()}: ${body}`);
+    expect(res.status(), body).toBe(200);
+    expect(body).toContain("invite");
   });
 
   await step("See it on the schedule, and the calendar link works", async () => {
