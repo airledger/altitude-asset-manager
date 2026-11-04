@@ -14,6 +14,8 @@ import { OutboxBar } from "./Outbox";
 import { RegisterPage } from "./Register";
 import { RemindersPage } from "./Reminders";
 import { ReportsPage } from "./Reports";
+import { InvoicePage, InvoicesPage, PricingPage, ClientBillingCard } from "./Invoices";
+import { invoicesApi } from "../invoices";
 import { reportsApi } from "../reports";
 import { SchedulePage } from "./Schedule";
 import { StickerDesigner } from "./StickerDesigner";
@@ -25,6 +27,7 @@ const tabs: Record<string, { label: string; icon: IconName }> = {
   clients: { label: "Clients", icon: "clients" },
   jobs: { label: "Jobs", icon: "jobs" },
   labels: { label: "Asset labels", icon: "sticker" },
+  invoices: { label: "Invoices", icon: "report" },
   business: { label: "Business", icon: "business" },
 };
 type Tab = string;
@@ -51,11 +54,13 @@ const tabOf = (page: string): Tab =>
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
-        : page === "team" || page === "materials"
-          ? "business"
-          : page in tabs
-            ? page
-            : "";
+        : page === "invoice" || page === "pricing"
+          ? "invoices"
+          : page === "team" || page === "materials"
+            ? "business"
+            : page in tabs
+              ? page
+              : "";
 
 /** Signed in with a business: header with the business switcher, navigation, and the page. */
 export function Shell(props: {
@@ -75,6 +80,8 @@ export function Shell(props: {
     [api, current.id, session.user.id],
   );
   const reports = useMemo(() => reportsApi(api.client, current.id), [api, current.id]);
+  const invoices = useMemo(() => invoicesApi(api.client, current.id), [api, current.id]);
+  const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
       setRoute(readHash());
@@ -89,12 +96,14 @@ export function Shell(props: {
       action={<ScanButton />}
       nav={
         <nav className="tabs" aria-label="Sections">
-          {Object.keys(tabs).map((t) => (
-            <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
-              <Icon name={tabs[t]?.icon ?? "home"} size={22} />
-              <span>{tabs[t]?.label}</span>
-            </a>
-          ))}
+          {Object.keys(tabs)
+            .filter((t) => t !== "invoices" || owner)
+            .map((t) => (
+              <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
+                <Icon name={tabs[t]?.icon ?? "home"} size={22} />
+                <span>{tabs[t]?.label}</span>
+              </a>
+            ))}
         </nav>
       }
     >
@@ -110,7 +119,11 @@ export function Shell(props: {
       case "clients":
         return <ClientList assets={assets} />;
       case "client":
-        return <ClientPage assets={assets} id={r.arg} />;
+        return (
+          <ClientPage assets={assets} id={r.arg}>
+            {owner && r.arg !== "new" && <ClientBillingCard invoices={invoices} clientId={r.arg} />}
+          </ClientPage>
+        );
       case "system":
         return (
           <SystemPage
@@ -144,7 +157,25 @@ export function Shell(props: {
             business={current}
             userId={session.user.id}
             reports={reports}
+            invoices={owner ? invoices : null}
           />
+        );
+      case "invoices":
+      case "invoice":
+      case "pricing":
+        if (!owner)
+          return (
+            <section className="card">
+              <h1>Owners only</h1>
+              <p>Prices and invoices are only shown to the business's owners.</p>
+            </section>
+          );
+        return r.page === "invoices" ? (
+          <InvoicesPage invoices={invoices} jobs={jobs} query={r.query} />
+        ) : r.page === "invoice" ? (
+          <InvoicePage invoices={invoices} id={r.arg} />
+        ) : (
+          <PricingPage invoices={invoices} jobs={jobs} assets={assets} />
         );
       case "reports":
         return <ReportsPage reports={reports} />;

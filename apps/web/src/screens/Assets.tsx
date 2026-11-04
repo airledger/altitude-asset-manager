@@ -7,7 +7,7 @@ import {
   systemInfo,
   type IsoDate,
 } from "@airledger/domain";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   CONTROLLERS,
   FILTER_TYPES,
@@ -127,7 +127,7 @@ export function ClientList({ assets }: { assets: Assets }) {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
+export function ClientPage({ assets, id, children }: { assets: Assets; id: string; children?: ReactNode }) {
   const isNew = id === "new";
   const client = useLoad(() => (isNew ? Promise.resolve(null) : assets.client(id)), [assets, id]);
   const systems = useLoad(() => (isNew ? Promise.resolve([]) : assets.systems(id)), [assets, id]);
@@ -182,6 +182,7 @@ export function ClientPage({ assets, id }: { assets: Assets; id: string }) {
           </section>
         )
       )}
+      {c && !editing && children}
       {c && (
         <section className="card">
           <div className="row spread">

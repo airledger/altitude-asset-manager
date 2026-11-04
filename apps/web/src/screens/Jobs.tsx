@@ -39,6 +39,8 @@ import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { useOutbox } from "./Outbox";
 import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
 import type { ReportsApi } from "../reports";
+import type { InvoicesApi } from "../invoices";
+import { JobBillingCard } from "./Invoices";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, todayIso, unitTitle, useLoad } from "./Assets";
@@ -242,6 +244,8 @@ export function JobPage(p: {
   business: Business;
   userId: string;
   reports: ReportsApi;
+  /** Owners only. */
+  invoices?: InvoicesApi | null;
 }) {
   const isNew = p.id === "new";
   const job = useLoad(() => (isNew ? Promise.resolve(null) : p.jobs.job(p.id)), [p.jobs, p.id]);
@@ -469,6 +473,9 @@ export function JobPage(p: {
       </section>
       {j.status === "completed" && reportCtx && !waiting && (
         <ReportCard assets={p.assets} reports={p.reports} ctx={reportCtx} sentTo={p.query.get("sent")} />
+      )}
+      {p.invoices && j.status !== "cancelled" && (
+        <JobBillingCard invoices={p.invoices} jobs={p.jobs} job={j} />
       )}
       {j.status === "completed" && record.value && ctx.value && (
         <RecordView job={j} record={record.value} units={ctx.value.units} />
