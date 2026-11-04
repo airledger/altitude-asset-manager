@@ -20,6 +20,8 @@ function setUsingCopy(v: boolean) {
   usingCopy = v;
   listeners.forEach((fn) => fn());
 }
+// When the signal comes back, stop saying "No signal" straight away rather than waiting for the next read.
+if (typeof window !== "undefined") window.addEventListener("online", () => setUsingCopy(false));
 
 /** A fetch failure caused by having no connection, rather than the server saying no. */
 export function isNetworkError(e: unknown): boolean {

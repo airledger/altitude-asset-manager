@@ -7,7 +7,8 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PW = process.env.E2E_PASSWORD ?? "";
-const OWNER = process.env.E2E_OWNER ?? "";
+// Each run (desktop, iPhone) has its own owner account, so one stopping early never trips up the other.
+const ownerFor = (project: string) => (process.env.E2E_OWNER ?? "").replace("@", `-${project}@`);
 const ENGINEER = process.env.E2E_ENGINEER ?? "";
 const INBOX = "delivered@resend.dev";
 
@@ -23,8 +24,8 @@ async function signIn(page: Page, email: string, query = "") {
   await page.goto(`/${query}`);
   const already = page.getByRole("button", { name: "Already have an account? Sign in" });
   if (await already.isVisible().catch(() => false)) await already.click();
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PW);
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PW);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 async function sign(page: Page, label: string) {
@@ -45,12 +46,27 @@ const idFrom = (page: Page, kind: string) => {
 };
 
 test("a business's week in Air Ledger", async ({ page, browser }, info) => {
-  test.skip(!PW || !OWNER || !ENGINEER, "E2E_PASSWORD, E2E_OWNER and E2E_ENGINEER are needed");
+  test.skip(
+    !PW || !process.env.E2E_OWNER || !ENGINEER,
+    "E2E_PASSWORD, E2E_OWNER and E2E_ENGINEER are needed",
+  );
   const phone = info.project.name === "iphone";
+  const OWNER = ownerFor(info.project.name);
   const biz = phone ? "E2E Phone Cooling" : "E2E Desktop Cooling";
   const step = (name: string, fn: () => Promise<void>) =>
     test.step(name, async () => {
-      await fn();
+      try {
+        await fn();
+      } catch (e) {
+        // What was on screen, as text, so the run's log says why without opening the report.
+        console.log(
+          `--- ${name}: ${page.url()}\n${await page
+            .locator("body")
+            .ariaSnapshot()
+            .catch(() => "")}`,
+        );
+        throw e;
+      }
       await snap(page, info, name);
     });
   let clientId = "";
@@ -60,15 +76,15 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Sign in and set up the business", async () => {
     await signIn(page, OWNER);
-    await page.getByLabel("Business name").fill(biz);
-    await page.getByLabel("Invite code").fill(phone ? "E2EPHONE" : "E2EDESKTOP");
+    await page.getByLabel("Business name", { exact: true }).fill(biz);
+    await page.getByLabel("Invite code", { exact: true }).fill(phone ? "E2EPHONE" : "E2EDESKTOP");
     await page.getByRole("button", { name: "Set up business" }).click();
     await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible();
   });
 
   await step("Business details", async () => {
     await open(page, "#/business");
-    await page.getByLabel("Phone").fill("01202 000000");
+    await page.getByLabel("Phone", { exact: true }).fill("01202 000000");
     await page.getByLabel("Email", { exact: true }).fill(INBOX);
     await page.getByRole("button", { name: "Save details" }).click();
     await expect(page.getByText("Saved").first()).toBeVisible();
@@ -77,20 +93,20 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   await step("Add an engineer, which makes an invite link", async () => {
     await open(page, "#/team");
     const form = page.getByRole("form", { name: "Add an engineer" });
-    await form.getByLabel("Name").fill("Eddie Engineer");
-    await form.getByLabel("Email").fill(ENGINEER);
+    await form.getByLabel("Name", { exact: true }).fill("Eddie Engineer");
+    await form.getByLabel("Email", { exact: true }).fill(ENGINEER);
     await form.getByRole("button", { name: "Add engineer" }).click();
-    await expect(page.getByLabel("Invite link")).toBeVisible();
+    await expect(page.getByLabel("Invite link", { exact: true })).toBeVisible();
   });
-  const invite = await page.getByLabel("Invite link").inputValue();
+  const invite = await page.getByLabel("Invite link", { exact: true }).inputValue();
   expect(invite).toContain("invite=");
 
   await step("Add a client", async () => {
     await open(page, "#/client/new");
-    await page.getByLabel("Client or company name").fill("Harbour Dental (test)");
-    await page.getByLabel("Contact name").fill("Pat");
-    await page.getByLabel("Email").fill(INBOX);
-    await page.getByLabel("Postcode").fill("BH15 1AA");
+    await page.getByLabel("Client or company name", { exact: true }).fill("Harbour Dental (test)");
+    await page.getByLabel("Contact name", { exact: true }).fill("Pat");
+    await page.getByLabel("Email", { exact: true }).fill(INBOX);
+    await page.getByLabel("Postcode", { exact: true }).fill("BH15 1AA");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page).toHaveURL(/#\/client\/[0-9a-f-]{36}/);
     clientId = idFrom(page, "client");
@@ -98,11 +114,11 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Add an install", async () => {
     await page.getByRole("link", { name: "Add install" }).click();
-    await page.getByLabel("Name (e.g. Office heat pumps)").fill("Surgery heat pumps");
-    await page.getByLabel("Site address").fill("12 High St, Poole");
-    await page.getByLabel("Site postcode").fill("BH15 1AA");
-    await page.getByLabel("Install date").fill("2025-03-01");
-    await page.getByLabel("Factory charge (kg)").fill("1.2");
+    await page.getByLabel("Name (e.g. Office heat pumps)", { exact: true }).fill("Surgery heat pumps");
+    await page.getByLabel("Site address", { exact: true }).fill("12 High St, Poole");
+    await page.getByLabel("Site postcode", { exact: true }).fill("BH15 1AA");
+    await page.getByLabel("Install date", { exact: true }).fill("2025-03-01");
+    await page.getByLabel("Factory charge (kg)", { exact: true }).fill("1.2");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page).toHaveURL(/#\/system\/[0-9a-f-]{36}/);
     systemId = idFrom(page, "system");
@@ -119,7 +135,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
         .first()
         .click();
       await page.getByLabel(type, { exact: true }).check();
-      await page.getByLabel("Manufacturer").fill(maker);
+      await page.getByLabel("Manufacturer", { exact: true }).fill(maker);
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText(maker).first()).toBeVisible();
     });
@@ -129,25 +145,34 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     labelCode = /AC-[A-Z0-9]{5}/.exec(text)?.[0] ?? "";
     expect(labelCode).not.toBe("");
     await open(page, "#/labels");
-    await page.getByLabel("Label code or link").fill(labelCode.toLowerCase());
+    await page.getByLabel("Label code or link", { exact: true }).fill(labelCode.toLowerCase());
     await page.getByRole("button", { name: "Open unit" }).click();
     await expect(page.getByText(/Asset #\d+/).first()).toBeVisible();
   });
 
   await step("Book a service for the engineer (they're emailed a calendar invite)", async () => {
     await open(page, `#/job/new?system=${systemId}`);
-    await page.getByLabel("Engineer").selectOption({ label: "Eddie Engineer" });
-    await page.getByLabel("Time (optional)").fill("09:30");
+    await page.locator('select[name="engineer_id"]').selectOption({ label: "Eddie Engineer" });
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await page.getByLabel("Date", { exact: true }).fill(tomorrow);
+    await page.getByLabel("Time (optional)", { exact: true }).fill("09:30");
+    const invited = page.waitForResponse((r) => r.url().includes("/functions/v1/job-invite"));
     await page.getByRole("button", { name: "Book job" }).click();
     await expect(page).toHaveURL(/#\/job\/[0-9a-f-]{36}/);
     jobId = idFrom(page, "job");
+    // The server's answer says whether the invite email went out.
+    const res = await invited;
+    const body = await res.text();
+    console.log(`job-invite ${res.status()}: ${body}`);
+    expect(res.status(), body).toBe(200);
+    expect(body).toContain("invite");
   });
 
   await step("See it on the schedule, and the calendar link works", async () => {
-    await open(page, "#/schedule");
+    await open(page, "#/schedule?view=agenda");
     await expect(page.getByText(/Annual service/).first()).toBeVisible();
     await page.getByRole("button", { name: "Get calendar link" }).click();
-    const link = await page.getByLabel("Calendar link").inputValue();
+    const link = await page.getByLabel("Calendar link", { exact: true }).inputValue();
     const ics = await (await page.request.get(link)).text();
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("Harbour Dental (test)");
@@ -155,13 +180,15 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Complete the job", async () => {
     await open(page, `#/job/${jobId}?do=complete`);
-    await page.getByLabel("What was found and done").fill("Serviced both units. All working.");
+    await page
+      .getByLabel("What was found and done", { exact: true })
+      .fill("Serviced both units. All working.");
     await page.getByRole("button", { name: /Complete job/ }).click();
     await expect(page.getByRole("heading", { name: "Sign off" })).toBeVisible();
   });
 
   await step("Sign off and make the service report", async () => {
-    await page.getByLabel("Customer's name").fill("Pat");
+    await page.getByLabel("Customer's name", { exact: true }).fill("Pat");
     await sign(page, "Engineer's signature");
     await sign(page, "Customer's signature");
     await page.getByRole("button", { name: "Sign and make report" }).click();
@@ -232,11 +259,14 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await open(page, `#/system/${systemId}`);
     await expect(page.getByText("Surgery heat pumps").first()).toBeVisible();
     await page.getByText("Add note or photos").click();
-    await page.getByLabel("Notes").fill("Written with no signal");
+    await page.getByLabel("Notes", { exact: true }).fill("Written with no signal");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/saved on this phone|waiting to send/).first()).toBeVisible();
     await page.context().setOffline(false);
-    await expect(page.getByText(/waiting to send|saved on this phone/)).toHaveCount(0, { timeout: 60_000 });
+    await expect(page.getByText(/No signal|waiting to send/)).toHaveCount(0, { timeout: 60_000 });
+    // The note reached the server: it's there after opening the install afresh.
+    await page.reload();
+    await expect(page.getByText("Written with no signal").first()).toBeVisible({ timeout: 30_000 });
   });
 
   if (!phone)
@@ -258,7 +288,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
       // The engineer deletes their own account; the business stays.
       await eng.evaluate(() => (window.location.hash = "#/account"));
-      await eng.getByLabel("Type DELETE to confirm").fill("DELETE");
+      await eng.getByLabel("Type DELETE to confirm", { exact: true }).fill("DELETE");
       await eng.getByRole("button", { name: "Delete my account" }).click();
       await expect(eng.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
       await ctx.close();
@@ -266,7 +296,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Delete the business", async () => {
     await open(page, "#/business");
-    await page.getByLabel("Type the business name to delete it").fill(biz);
+    await page.getByLabel("Type the business name to delete it", { exact: true }).fill(biz);
     await page.getByRole("button", { name: "Delete business" }).click();
     await expect(page.getByRole("heading", { name: "Set up your business" })).toBeVisible({
       timeout: 30_000,

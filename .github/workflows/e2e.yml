@@ -45,7 +45,7 @@ jobs:
           PW=$(openssl rand -hex 16)
           echo "::add-mask::$PW"
           echo "E2E_PASSWORD=$PW" >> "$GITHUB_ENV"
-          psql "$BETA_URL" -X -q -v pw="$PW" -v owner="$E2E_OWNER" -v engineer="$E2E_ENGINEER" -f e2e/setup.sql
+          psql "$BETA_URL" -X -q -v pw="$PW" -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -f e2e/setup.sql
       - name: Install the test browsers
         working-directory: e2e
         run: |
@@ -61,7 +61,7 @@ jobs:
         if: always()
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
-        run: psql "$BETA_URL" -X -q -v owner="$E2E_OWNER" -v engineer="$E2E_ENGINEER" -f e2e/cleanup.sql
+        run: psql "$BETA_URL" -X -q -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -f e2e/cleanup.sql
       - uses: actions/upload-artifact@v4
         if: always()
         with:
