@@ -245,10 +245,10 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await open(page, `#/client/${clientId}`);
     await page.getByRole("button", { name: "Add contract" }).click();
     const form = page.getByRole("form", { name: "Contract" });
-    await form.getByLabel("Visits a year", { exact: true }).selectOption("2");
+    await form.locator('select[name="visits_per_year"]').selectOption("2");
     await expect(form.getByLabel("Surgery heat pumps", { exact: true })).toBeChecked();
     await form.getByLabel("Contract price (£)", { exact: true }).fill("1200");
-    await form.getByLabel("Billed", { exact: true }).selectOption("monthly");
+    await form.locator('select[name="billing"]').selectOption("monthly");
     await form.getByRole("button", { name: "Save contract" }).click();
     await expect(page.getByText(/visit booked in the diary|visits booked in the diary/)).toBeVisible();
     const card = page.getByRole("region", { name: "Contracts" });
