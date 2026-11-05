@@ -241,6 +241,23 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     expect((await dl).suggestedFilename()).toMatch(/\.csv$/);
   });
 
+  await step("Put the client on a maintenance contract: visits booked, first bill drafted", async () => {
+    await open(page, `#/client/${clientId}`);
+    await page.getByRole("button", { name: "Add contract" }).click();
+    const form = page.getByRole("form", { name: "Contract" });
+    await form.getByLabel("Visits a year", { exact: true }).selectOption("2");
+    await expect(form.getByLabel("Surgery heat pumps", { exact: true })).toBeChecked();
+    await form.getByLabel("Contract price (£)", { exact: true }).fill("1200");
+    await form.getByLabel("Billed", { exact: true }).selectOption("monthly");
+    await form.getByRole("button", { name: "Save contract" }).click();
+    await expect(page.getByText(/visit booked in the diary|visits booked in the diary/)).toBeVisible();
+    const card = page.getByRole("region", { name: "Contracts" });
+    await expect(card.getByText(/billed monthly \(£100\.00\)/)).toBeVisible();
+    await expect(card.getByText(/Next visit/)).toBeVisible();
+    await open(page, "#/invoices");
+    await expect(page.getByText(/1 contract bill/)).toBeVisible({ timeout: 60_000 });
+  });
+
   await step("Asset register, reminders and parts to order", async () => {
     await open(page, "#/register");
     const dl = page.waitForEvent("download");
@@ -281,6 +298,12 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
       await expect(eng.getByText("Owners only")).toBeVisible();
       await eng.evaluate(() => (window.location.hash = "#/jobs?show=all"));
       await expect(eng.getByText(/Annual service/).first()).toBeVisible();
+      // They can see the client is on contract, but not what it costs.
+      await eng.evaluate((id) => (window.location.hash = `#/client/${id}`), clientId);
+      const card = eng.getByRole("region", { name: "Contracts" });
+      await expect(card.getByText("Planned maintenance")).toBeVisible();
+      await expect(card.getByText(/£/)).toHaveCount(0);
+      await expect(card.getByRole("button", { name: "Add contract" })).toHaveCount(0);
       await info.attach("Engineer's view", {
         body: await eng.screenshot({ fullPage: true }),
         contentType: "image/png",

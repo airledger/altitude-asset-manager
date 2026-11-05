@@ -32,7 +32,8 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
     (p.query.get("show") as Filter) in FILTERS ? (p.query.get("show") as Filter) : "draft";
   // Draft any completed jobs first, then load the list.
   const data = useLoad(async () => {
-    const made = await p.invoices.draftPending((id) => p.jobs.record(id), todayIso());
+    const contractBills = await p.invoices.billContracts();
+    const made = { ...(await p.invoices.draftPending((id) => p.jobs.record(id), todayIso())), contractBills };
     const [list, accounts, covered] = await Promise.all([
       p.invoices.invoices(),
       p.invoices.accounts(),
@@ -64,18 +65,23 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
 
   return (
     <>
-      <PageHead title="Invoices" sub="Drafted from completed jobs. Check them, then export to your accounts.">
+      <PageHead
+        title="Invoices"
+        sub="Drafted from completed jobs and contracts. Check them, then export to your accounts."
+      >
         <a className="btn" href="#/pricing">
           Prices and accounts
         </a>
       </PageHead>
-      {d && (d.made.drafted > 0 || d.made.covered > 0) && (
+      {d && (d.made.drafted > 0 || d.made.covered > 0 || d.made.contractBills > 0) && (
         <p className="banner ok">
           {[
             d.made.drafted &&
               `${d.made.drafted} new draft invoice${d.made.drafted === 1 ? "" : "s"} from completed jobs`,
             d.made.covered &&
               `${d.made.covered} job${d.made.covered === 1 ? "" : "s"} covered by a service plan`,
+            d.made.contractBills &&
+              `${d.made.contractBills} contract bill${d.made.contractBills === 1 ? "" : "s"}`,
           ]
             .filter(Boolean)
             .join(", ")}

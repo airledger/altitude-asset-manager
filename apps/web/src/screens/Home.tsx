@@ -5,12 +5,14 @@ import type { Assets } from "../assets";
 import { useEffect } from "react";
 import { Icon } from "../icons";
 import { scheduleReminders } from "../native";
+import type { ContractsApi } from "../contracts";
 import type { JobsApi } from "../jobs";
 import { jobsToOrder, loadOverview } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine } from "../useAction";
 import { todayIso, useLoad } from "./Assets";
 import { JobRows } from "./Jobs";
+import { RenewalsCard } from "./Contracts";
 import { ScanBox } from "./Stickers";
 
 const greeting = () => {
@@ -21,6 +23,8 @@ const greeting = () => {
 export function Home(p: {
   assets: Assets;
   jobs: JobsApi;
+  /** Owners see contracts coming up for renewal. */
+  contracts?: ContractsApi;
   current: Business;
   businesses: Business[];
   choose: (id: string) => void;
@@ -164,6 +168,7 @@ export function Home(p: {
           )}
         </section>
       </div>
+      {owner && p.contracts && <RenewalsCard contracts={p.contracts} />}
       <div className="split">
         <ScanBox />
         <section className="card linkcard">
