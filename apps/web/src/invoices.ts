@@ -21,6 +21,23 @@ import {
 } from "@airledger/domain";
 import { toDomain, type ClientRow, type SystemRow, type UnitRow } from "./assets";
 import { toJob, toLine, toUnit, type JobRecord, type JobRow, type MaterialRow } from "./jobs";
+import { appOrigin } from "./native";
+
+/** The live link to Xero or QuickBooks, as owners see it (never the tokens). */
+export interface AccountsConnection {
+  system: "xero" | "quickbooks";
+  tenant_name: string;
+  connected_at: string;
+  last_sync_at: string | null;
+  last_error: string;
+}
+export interface SyncResult {
+  system: "xero" | "quickbooks";
+  sent: number;
+  paid: number;
+  errors: { number: string; error: string }[];
+}
+export const SYSTEM_LABEL = { xero: "Xero", quickbooks: "QuickBooks" } as const;
 
 export interface PriceListRow {
   labour_first: number | null;
@@ -94,6 +111,12 @@ export interface InvoiceRow {
   status: "draft" | "exported";
   exported_at: string | null;
   auto: boolean;
+  external_system?: "xero" | "quickbooks" | "sage" | null;
+  external_id?: string | null;
+  sync_status?: "pending" | "synced" | "failed" | null;
+  sync_error?: string;
+  amount_paid?: number;
+  paid_at?: string | null;
   invoice_lines: LineRow[];
   clients: { name: string } | null;
   jobs: { id: string; type: string; date: string | null } | null;
@@ -226,6 +249,15 @@ export function linesForJob(a: {
 }
 
 export function invoicesApi(sb: SupabaseClient, orgId: string) {
+  async function accountsCall<T>(body: Record<string, unknown>): Promise<T> {
+    const { data, error } = await sb.functions.invoke("accounts", { body: { ...body, orgId } });
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      const out = ctx && typeof ctx.json === "function" ? await ctx.json().catch(() => null) : null;
+      throw new Error((out as { error?: string } | null)?.error || error.message);
+    }
+    return data as T;
+  }
   async function upsert(table: string, row: Record<string, unknown>, key: string) {
     const { error } = await sb.from(table).upsert({ ...row, org_id: orgId }, { onConflict: key });
     fail(error);
@@ -508,6 +540,26 @@ export function invoicesApi(sb: SupabaseClient, orgId: string) {
       }
       return { drafted, covered };
     },
+
+    /** The live connection to Xero or QuickBooks, if there is one. */
+    async connection(): Promise<AccountsConnection | null> {
+      const { data, error } = await sb.rpc("accounts_connection", { p_org: orgId });
+      fail(error);
+      return ((data as AccountsConnection[] | null) ?? [])[0] ?? null;
+    },
+
+    /** Asks the server where to send the owner to approve the connection. */
+    async connectUrl(system: "xero" | "quickbooks"): Promise<string> {
+      const out = await accountsCall<{ url: string }>({
+        action: "connect",
+        system,
+        returnTo: `${appOrigin()}/`,
+      });
+      return out.url;
+    },
+    disconnect: () => accountsCall<{ ok: boolean }>({ action: "disconnect" }),
+    /** Sends these invoices (and their customers) across, then brings back what's been paid. */
+    sync: (ids: string[]) => accountsCall<SyncResult>({ action: "sync", invoices: ids }),
 
     /** Renews contracts set to renew by themselves and drafts any contract bills that have come round. */
     async billContracts(): Promise<number> {

@@ -214,6 +214,8 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   await step("Prices and accounts", async () => {
     await open(page, "#/pricing");
     await expect(page.getByRole("heading").first()).toBeVisible();
+    // Not connected yet: the CSV export stays, and connecting is offered.
+    await expect(page.getByRole("button", { name: "Connect Xero" })).toBeVisible();
   });
 
   await step("Invoices: the completed job is drafted, edited and exported", async () => {

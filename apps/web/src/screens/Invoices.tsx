@@ -13,6 +13,8 @@ import {
   type InvoiceRow,
   type InvoicesApi,
   type PriceListRow,
+  type SyncResult,
+  SYSTEM_LABEL,
 } from "../invoices";
 import type { JobRow, JobsApi } from "../jobs";
 import { download } from "../stickerPdf";
@@ -34,12 +36,15 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
   const data = useLoad(async () => {
     const contractBills = await p.invoices.billContracts();
     const made = { ...(await p.invoices.draftPending((id) => p.jobs.record(id), todayIso())), contractBills };
+    // When connected, bring back what's been paid before listing.
+    const connection = await p.invoices.connection().catch(() => null);
+    const pulled = connection ? await p.invoices.sync([]).catch((e: Error) => e.message) : null;
     const [list, accounts, covered] = await Promise.all([
       p.invoices.invoices(),
       p.invoices.accounts(),
       p.invoices.jobsBilled("plan"),
     ]);
-    return { made, list, accounts, covered };
+    return { made, list, accounts, covered, connection, pulled };
   }, [p.invoices, p.jobs]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const act = useAction();
@@ -49,6 +54,16 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
   const chosen = toExport.filter((i) => picked.has(i.id));
   const batch = chosen.length ? chosen : toExport;
   const app = d ? APP_LABEL[d.accounts.accounts_app] : "";
+  const live = d?.connection ? SYSTEM_LABEL[d.connection.system] : "";
+  const [result, setResult] = useState<SyncResult | null>(null);
+
+  function sendNow() {
+    void act.run(async () => {
+      setResult(await p.invoices.sync(batch.map((i) => i.id)));
+      setPicked(new Set());
+      data.reload();
+    });
+  }
 
   function exportNow() {
     void act.run(async () => {
@@ -103,6 +118,18 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
           ))}
         </div>
         <ErrorLine error={data.error || act.error} />
+        {typeof d?.pulled === "string" && (
+          <p className="error">
+            Couldn't check payments in {live}: {d.pulled}
+          </p>
+        )}
+        {result && (
+          <p className={result.errors.length ? "error" : "banner ok"} role="status">
+            {result.sent > 0 && `${result.sent} sent to ${SYSTEM_LABEL[result.system]}. `}
+            {result.errors.map((e) => `${e.number}: ${e.error}`).join(" ")}
+            {!result.sent && !result.errors.length && "Nothing new to send."}
+          </p>
+        )}
         {!d ? (
           <Loading />
         ) : !shown.length ? (
@@ -111,18 +138,31 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
           </Empty>
         ) : (
           <>
-            {toExport.length > 0 && (
-              <div className="row">
-                <button className="btn pri" disabled={act.busy} onClick={exportNow}>
-                  <Icon name="download" size={18} />
-                  Export {batch.length} to {app}
-                </button>
-                <span className="note">
-                  {chosen.length ? "The ones ticked." : "All waiting."} They're marked exported once
-                  downloaded.
-                </span>
-              </div>
-            )}
+            {toExport.length > 0 &&
+              (live ? (
+                <div className="row">
+                  <button className="btn pri" disabled={act.busy} onClick={sendNow}>
+                    <Icon name="send" size={18} />
+                    {act.busy ? "Sending…" : `Send ${batch.length} to ${live}`}
+                  </button>
+                  <button className="btn" disabled={act.busy} onClick={exportNow}>
+                    <Icon name="download" size={18} />
+                    CSV instead
+                  </button>
+                  <span className="note">{chosen.length ? "The ones ticked." : "All waiting."}</span>
+                </div>
+              ) : (
+                <div className="row">
+                  <button className="btn pri" disabled={act.busy} onClick={exportNow}>
+                    <Icon name="download" size={18} />
+                    Export {batch.length} to {app}
+                  </button>
+                  <span className="note">
+                    {chosen.length ? "The ones ticked." : "All waiting."} They're marked exported once
+                    downloaded.
+                  </span>
+                </div>
+              ))}
             <ul className="rows invoices">
               {shown.map((i) => {
                 const t = totals(i);
@@ -150,14 +190,27 @@ export function InvoicesPage(p: { invoices: InvoicesApi; jobs: JobsApi; query: U
                           {[
                             formatDate(i.date),
                             i.reference,
-                            i.status === "exported" &&
-                              i.exported_at &&
-                              `exported ${formatDate(i.exported_at.slice(0, 10))}`,
+                            i.paid_at
+                              ? `paid ${formatDate(i.paid_at)}`
+                              : Number(i.amount_paid) > 0
+                                ? `${money(Number(i.amount_paid))} paid`
+                                : null,
+                            i.external_id && i.external_system && i.external_system !== "sage"
+                              ? `in ${SYSTEM_LABEL[i.external_system]}`
+                              : i.status === "exported" &&
+                                i.exported_at &&
+                                `exported ${formatDate(i.exported_at.slice(0, 10))}`,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                         </span>
                       </a>
+                      {i.paid_at && <span className="pill green">Paid</span>}
+                      {i.sync_status === "failed" && !i.external_id && (
+                        <span className="pill red" title={i.sync_error}>
+                          Not sent
+                        </span>
+                      )}
                       <span className="amount">{money(t.gross)}</span>
                     </div>
                   </li>
@@ -571,7 +624,12 @@ export function ClientBillingCard(p: { invoices: InvoicesApi; clientId: string }
 
 // ---------- prices and accounts ----------
 
-export function PricingPage(p: { invoices: InvoicesApi; jobs: JobsApi; assets: Assets }) {
+export function PricingPage(p: {
+  invoices: InvoicesApi;
+  jobs: JobsApi;
+  assets: Assets;
+  query?: URLSearchParams;
+}) {
   const data = useLoad(async () => {
     const [prices, accounts, materials, materialPrices] = await Promise.all([
       p.invoices.priceList(),
@@ -774,6 +832,85 @@ export function PricingPage(p: { invoices: InvoicesApi; jobs: JobsApi; assets: A
           {saved === "accounts" && <span className="note">Saved.</span>}
         </div>
       </form>
+      <LiveConnection invoices={p.invoices} came={p.query?.get("accounts") ?? ""} />
     </>
+  );
+}
+
+const CAME_BACK: Record<string, [string, string]> = {
+  connected: ["ok", "Connected. Invoices can now be sent across from the Invoices page."],
+  declined: ["error", "The connection wasn't approved, so nothing changed."],
+  expired: ["error", "That took too long. Press Connect again."],
+  failed: ["error", "The connection didn't work. Press Connect again, and if it keeps failing, tell us."],
+  "no-organisation": ["error", "No company was chosen. Press Connect again and pick your company."],
+};
+
+/** Connect Xero or QuickBooks once; after that invoices go across from the Invoices page. */
+function LiveConnection(p: { invoices: InvoicesApi; came: string }) {
+  const conn = useLoad(() => p.invoices.connection(), [p.invoices]);
+  const act = useAction();
+  const c = conn.value;
+  const back = CAME_BACK[p.came];
+  const connect = (system: "xero" | "quickbooks") =>
+    void act.run(async () => {
+      window.location.assign(await p.invoices.connectUrl(system));
+    });
+  return (
+    <section className="card form" aria-label="Live connection">
+      <h2>Live connection</h2>
+      {back && <p className={back[0] === "ok" ? "banner ok" : "error"}>{back[1]}</p>}
+      <ErrorLine error={conn.error || act.error} />
+      {c === undefined ? (
+        <Loading />
+      ) : c ? (
+        <>
+          <p>
+            Connected to <b>{SYSTEM_LABEL[c.system]}</b>
+            {c.tenant_name ? ` (${c.tenant_name})` : ""} since {formatDate(c.connected_at.slice(0, 10))}.
+            {c.last_sync_at && ` Last synced ${formatDate(c.last_sync_at.slice(0, 10))}.`}
+          </p>
+          {c.last_error && <p className="error">Last problem: {c.last_error}</p>}
+          <p className="note">
+            Invoices you send go into {SYSTEM_LABEL[c.system]}
+            {c.system === "xero" ? " as drafts, ready to approve" : ""}, with the customer added if they're
+            new. Payments come back here by themselves.
+          </p>
+          <div className="row">
+            <button
+              className="btn"
+              disabled={act.busy}
+              onClick={() => {
+                if (!window.confirm(`Disconnect ${SYSTEM_LABEL[c.system]}? You can connect again any time.`))
+                  return;
+                void act.run(async () => {
+                  await p.invoices.disconnect();
+                  conn.reload();
+                });
+              }}
+            >
+              Disconnect
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="note">
+            Connect once and invoices go straight into your accounts, with no CSV to download and import.
+            You'll sign in to your accounts software and approve Air Ledger.
+          </p>
+          <div className="row">
+            <button className="btn pri" disabled={act.busy} onClick={() => connect("xero")}>
+              Connect Xero
+            </button>
+            <button className="btn pri" disabled={act.busy} onClick={() => connect("quickbooks")}>
+              Connect QuickBooks
+            </button>
+          </div>
+          <p className="note">
+            Sage 50 runs on your computer with no online connection, so it uses the CSV export.
+          </p>
+        </>
+      )}
+    </section>
   );
 }

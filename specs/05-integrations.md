@@ -36,8 +36,16 @@ Sage 50 audit trail import, chosen by `accountsApp = sage`. One `SI` (sales invo
 
 All three exports have golden-file tests (`packages/domain/test/golden/`): a fixed set of invoices must produce byte-identical CSV to today's output.
 
-## Automatic accounting sync (deferred, planned)
-Lewis wants this later, for Xero, QuickBooks and Sage. Approach: register Intuit, Xero and Sage developer apps; OAuth connect per business from Settings; tokens stored encrypted server-side; an edge function pushes approved invoices and maps clients to contacts; status and errors shown on each invoice. The rebuild's invoice model must have `external_id`, `external_system` and `sync_status` fields from day one so this slots in.
+## Live accounts sync (built 5 Nov 2026, beta)
+Function `accounts` (deployed `--no-verify-jwt`, because Xero and Intuit send the browser back to it; every POST checks the sign-in and that the caller owns the business).
+- Connect: Prices and accounts → Connect Xero / Connect QuickBooks → the owner approves at Xero/Intuit → back to `#/pricing?accounts=connected`. One connection per business (`accounts_connections`, service key only; tokens AES-GCM encrypted). Owners see the status through `accounts_connection(org)`.
+- Send: Invoices → "Send N to Xero/QuickBooks". The customer is found by name or created, and its id is kept in `client_billing.external_id`. Xero invoices go in as DRAFT with tax types OUTPUT2/NONE and the account code from settings. QuickBooks uses the product/service and VAT code named in settings (looked up by name), with tax excluded. Invoices that were sent are marked exported; failures show "Not sent" with the reason.
+- Payments: each time Invoices opens, `amount_paid` and `paid_at` come back for sent invoices that aren't yet paid.
+- Xero scopes: `offline_access accounting.contacts accounting.invoices`. These are granular scopes; apps made after 2 March 2026 can't use the old broad ones. QuickBooks scope: `com.intuit.quickbooks.accounting`.
+- Secrets (Supabase → Edge Functions → Secrets): `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `QB_CLIENT_ID`, `QB_CLIENT_SECRET`, `QB_ENV=sandbox` while testing with Intuit's development keys, and optional `ACCOUNTS_TOKEN_KEY`.
+- Redirect URI to register with both: `https://<project-ref>.supabase.co/functions/v1/accounts`.
+- Sage 50 is desktop software with no online connection, so it stays on CSV. Sage Business Cloud could be added later.
+- Not yet: accepted quotes coming back as "Ready to book" (plan), and sending automatically without pressing Send.
 
 ## Calendar
 - `.ics` with `Europe/London` timezone, event per job: summary `<type> – <client> (<postcode>)`, location, description with units, materials, notes, link to job; alarms 1 day and 1 hour before. UIDs `<jobId>@altitude-climate` (kept for continuity).
