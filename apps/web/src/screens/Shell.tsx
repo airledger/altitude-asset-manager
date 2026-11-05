@@ -182,7 +182,7 @@ export function Shell(props: {
         ) : r.page === "invoice" ? (
           <InvoicePage invoices={invoices} id={r.arg} />
         ) : (
-          <PricingPage invoices={invoices} jobs={jobs} assets={assets} />
+          <PricingPage invoices={invoices} jobs={jobs} assets={assets} query={r.query} />
         );
       case "reports":
         return <ReportsPage reports={reports} />;
