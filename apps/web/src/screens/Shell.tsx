@@ -16,6 +16,8 @@ import { RegisterPage } from "./Register";
 import { RemindersPage } from "./Reminders";
 import { ReportsPage } from "./Reports";
 import { InvoicePage, InvoicesPage, PricingPage, ClientBillingCard } from "./Invoices";
+import { ContractsCard } from "./Contracts";
+import { contractsApi } from "../contracts";
 import { invoicesApi } from "../invoices";
 import { reportsApi } from "../reports";
 import { SchedulePage } from "./Schedule";
@@ -82,6 +84,7 @@ export function Shell(props: {
   );
   const reports = useMemo(() => reportsApi(api.client, current.id), [api, current.id]);
   const invoices = useMemo(() => invoicesApi(api.client, current.id), [api, current.id]);
+  const contracts = useMemo(() => contractsApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -122,6 +125,9 @@ export function Shell(props: {
       case "client":
         return (
           <ClientPage assets={assets} id={r.arg}>
+            {r.arg !== "new" && (
+              <ContractsCard contracts={contracts} assets={assets} clientId={r.arg} owner={owner} />
+            )}
             {owner && r.arg !== "new" && <ClientBillingCard invoices={invoices} clientId={r.arg} />}
           </ClientPage>
         );
@@ -209,6 +215,7 @@ export function Shell(props: {
         return (
           <Home
             assets={assets}
+            contracts={contracts}
             jobs={jobs}
             current={current}
             businesses={businesses}

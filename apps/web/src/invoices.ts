@@ -509,6 +509,13 @@ export function invoicesApi(sb: SupabaseClient, orgId: string) {
       return { drafted, covered };
     },
 
+    /** Renews contracts set to renew by themselves and drafts any contract bills that have come round. */
+    async billContracts(): Promise<number> {
+      const { data, error } = await sb.rpc("bill_due_contracts", { p_org: orgId });
+      fail(error);
+      return Number(data ?? 0);
+    },
+
     /** The CSV for the business's accounts software. */
     async exportCsv(list: InvoiceRow[]): Promise<{ csv: string; app: AccountsApp }> {
       const accounts = await api.accounts();
