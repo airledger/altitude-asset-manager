@@ -10,6 +10,7 @@ const PW = process.env.E2E_PASSWORD ?? "";
 // Each run (desktop, iPhone) has its own owner account, so one stopping early never trips up the other.
 const ownerFor = (project: string) => (process.env.E2E_OWNER ?? "").replace("@", `-${project}@`);
 const ENGINEER = process.env.E2E_ENGINEER ?? "";
+const CUSTOMER = process.env.E2E_CUSTOMER ?? "";
 const INBOX = "delivered@resend.dev";
 
 test.describe.configure({ mode: "serial" });
@@ -287,6 +288,43 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await page.reload();
     await expect(page.getByText("Written with no signal").first()).toBeVisible({ timeout: 30_000 });
   });
+
+  if (!phone)
+    await step("The customer joins the portal, sees their units and asks for a repair", async () => {
+      await open(page, `#/client/${clientId}`);
+      const card = page.getByRole("region", { name: "Customer portal" });
+      await card.getByLabel("Their email", { exact: true }).fill(CUSTOMER);
+      await card.getByRole("button", { name: "Invite to portal" }).click();
+      const link = await card.getByLabel("Portal link", { exact: true }).inputValue();
+      const code = new URL(link).searchParams.get("portal") ?? "";
+      expect(code).not.toBe("");
+      const ctx = await browser.newContext();
+      const cust = await ctx.newPage();
+      await signIn(cust, CUSTOMER, `?portal=${code}`);
+      await expect(cust.getByRole("heading", { name: "Harbour Dental (test)" })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(cust.getByText(/Asset #\d+/).first()).toBeVisible();
+      await expect(cust.getByText(/£/)).toHaveCount(0);
+      await cust.getByRole("button", { name: "Ask for a visit" }).first().click();
+      const form = cust.getByRole("form", { name: "Visit request" });
+      await form.getByRole("button", { name: "A repair" }).click();
+      await form.getByLabel("What's wrong?", { exact: true }).fill("Test: indoor unit dripping");
+      await form.getByRole("button", { name: "Send request" }).click();
+      await expect(cust.getByText(/They'll book a time and email you/)).toBeVisible();
+      await info.attach("Customer portal", {
+        body: await cust.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+      await ctx.close();
+      // The business sees it on Home, ready to book.
+      await open(page, "#/");
+      await page.reload();
+      const requests = page.getByRole("region", { name: "Visit requests" });
+      await expect(requests.getByText(/indoor unit dripping/)).toBeVisible({ timeout: 30_000 });
+      await requests.getByRole("link", { name: "Book it" }).click();
+      await expect(page.getByRole("button", { name: "Book job" })).toBeVisible();
+    });
 
   if (!phone)
     await step("The engineer joins, sees their job and no prices", async () => {

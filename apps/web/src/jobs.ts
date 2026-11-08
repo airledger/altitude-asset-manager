@@ -49,6 +49,9 @@ export interface JobRow {
   completed_at: string | null;
   completion_notes: string;
   billing: string;
+  /** The customer's answer in the portal: accepted, or asked for another time (with a note). */
+  customer_response?: "accepted" | "change" | null;
+  customer_note?: string;
 }
 
 export type JobListRow = JobRow & {
@@ -239,6 +242,11 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
       .then(() => sb.functions.invoke("job-invite", { body: { job: jobId } }))
       .then((r) => r?.error && console.warn("Calendar invite not sent", r.error))
       .catch((e: unknown) => console.warn("Calendar invite not sent", e));
+    // Customers with portal access get the visit by email too, with a link to accept it.
+    void Promise.resolve()
+      .then(() => sb.functions.invoke("portal-notify", { body: { job: jobId } }))
+      .then((r) => r?.error && console.warn("Customer email not sent", r.error))
+      .catch((e: unknown) => console.warn("Customer email not sent", e));
   }
   return {
     userId,
@@ -289,6 +297,16 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
       const saved = (data as { id: string }).id;
       invite(saved);
       return saved;
+    },
+
+    /** A customer's portal request that this job was booked from. */
+    async linkRequest(requestId: string, jobId: string): Promise<void> {
+      const { error } = await sb
+        .from("service_requests")
+        .update({ status: "booked", job_id: jobId })
+        .eq("id", requestId)
+        .eq("org_id", orgId);
+      fail(error);
     },
 
     /** Reschedule: a new date, and optionally a new engineer (from dragging on the schedule). */

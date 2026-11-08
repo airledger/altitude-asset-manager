@@ -18,6 +18,8 @@ import { ReportsPage } from "./Reports";
 import { InvoicePage, InvoicesPage, PricingPage, ClientBillingCard } from "./Invoices";
 import { ContractsCard } from "./Contracts";
 import { contractsApi } from "../contracts";
+import { portalApi } from "../portal";
+import { PortalCard } from "./PortalAdmin";
 import { invoicesApi } from "../invoices";
 import { reportsApi } from "../reports";
 import { SchedulePage } from "./Schedule";
@@ -85,6 +87,7 @@ export function Shell(props: {
   const reports = useMemo(() => reportsApi(api.client, current.id), [api, current.id]);
   const invoices = useMemo(() => invoicesApi(api.client, current.id), [api, current.id]);
   const contracts = useMemo(() => contractsApi(api.client, current.id), [api, current.id]);
+  const portal = useMemo(() => portalApi(api.client), [api]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -127,6 +130,9 @@ export function Shell(props: {
           <ClientPage assets={assets} id={r.arg}>
             {r.arg !== "new" && (
               <ContractsCard contracts={contracts} assets={assets} clientId={r.arg} owner={owner} />
+            )}
+            {owner && r.arg !== "new" && (
+              <PortalCard portal={portal} assets={assets} clientId={r.arg} businessName={current.name} />
             )}
             {owner && r.arg !== "new" && <ClientBillingCard invoices={invoices} clientId={r.arg} />}
           </ClientPage>
@@ -216,6 +222,7 @@ export function Shell(props: {
           <Home
             assets={assets}
             contracts={contracts}
+            portal={portal}
             jobs={jobs}
             current={current}
             businesses={businesses}

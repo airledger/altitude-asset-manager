@@ -1,6 +1,8 @@
 import type { ReportsApi } from "../reports";
 import { ReportSettingsForm } from "./Reports";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import { portalApi } from "../portal";
+import { PortalSettingsForm } from "./PortalAdmin";
 import type { Api, Business } from "../api";
 import { Icon } from "../icons";
 import { PageHead } from "../ui";
@@ -56,6 +58,7 @@ export function BusinessSettings({
   saved: () => void;
 }) {
   const [logoUrl, setLogoUrl] = useState(business.logoUrl);
+  const portal = useMemo(() => portalApi(api.client), [api]);
   const [done, setDone] = useState(false);
   const { busy, error, run } = useAction();
 
@@ -126,6 +129,7 @@ export function BusinessSettings({
       </form>
       <ProfileForm assets={assets} />
       {business.role === "owner" && <ReportSettingsForm reports={reports} />}
+      <PortalSettingsForm portal={portal} orgId={business.id} />
       <DeleteBusiness api={api} business={business} done={saved} />
     </>
   );

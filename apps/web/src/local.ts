@@ -17,7 +17,7 @@ export const local = {
   },
 };
 
-export const keys = { invite: "al.invite", brand: "al.brand", business: "al.business" };
+export const keys = { invite: "al.invite", brand: "al.brand", business: "al.business", portal: "al.portal" };
 
 /** Picks up ?invite= and ?b= from the address, remembers them, and tidies the address bar. */
 export function readLinkParams(loc: Location = window.location): void {
@@ -27,11 +27,14 @@ export function readLinkParams(loc: Location = window.location): void {
   const params = new URLSearchParams(loc.search);
   const invite = params.get("invite")?.trim().toUpperCase();
   const brand = params.get("b")?.trim().toLowerCase();
+  const portal = params.get("portal")?.trim().toUpperCase();
   if (invite) local.set(keys.invite, invite);
+  if (portal) local.set(keys.portal, portal);
   if (brand) local.set(keys.brand, brand);
-  if (invite || brand) {
+  if (invite || brand || portal) {
     params.delete("invite");
     params.delete("b");
+    params.delete("portal");
     const rest = params.toString();
     window.history.replaceState(null, "", loc.pathname + (rest ? `?${rest}` : "") + loc.hash);
   }
