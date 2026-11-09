@@ -179,11 +179,23 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     expect(ics).toContain("Harbour Dental (test)");
   });
 
-  await step("Complete the job", async () => {
+  await step("Add a refrigerant cylinder", async () => {
+    await open(page, "#/refrigerant");
+    await page.getByRole("button", { name: "Add a cylinder" }).click();
+    const form = page.getByRole("form", { name: "Cylinder" });
+    await form.getByLabel("Cylinder number", { exact: true }).fill("E2E 1");
+    await form.getByLabel("Size (kg)", { exact: true }).fill("9");
+    await form.getByRole("button", { name: "Add cylinder" }).click();
+    await expect(page.getByText(/9 of 9 kg left/)).toBeVisible();
+  });
+
+  await step("Complete the job, topping up from the cylinder", async () => {
     await open(page, `#/job/${jobId}?do=complete`);
     await page
       .getByLabel("What was found and done", { exact: true })
       .fill("Serviced both units. All working.");
+    await page.getByLabel("Refrigerant added (kg)", { exact: true }).fill("0.4");
+    await page.locator("select[name=lc_added_cyl]").selectOption({ index: 1 });
     await page.getByRole("button", { name: /Complete job/ }).click();
     await expect(page.getByRole("heading", { name: "Sign off" })).toBeVisible();
   });
@@ -270,6 +282,15 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await expect(page.getByRole("heading").first()).toBeVisible();
     await open(page, "#/orders");
     await expect(page.getByRole("heading").first()).toBeVisible();
+  });
+
+  await step("The refrigerant log shows the top-up and the cylinder's level", async () => {
+    await open(page, "#/refrigerant");
+    await expect(page.getByText(/8.6 of 9 kg left/)).toBeVisible();
+    await expect(page.getByText(/Charged 0.4 kg/)).toBeVisible();
+    const dl = page.waitForEvent("download");
+    await page.getByRole("button", { name: /CSV/ }).click();
+    expect((await dl).suggestedFilename()).toMatch(/^refrigerant-log-.*\.csv$/);
   });
 
   await step("No signal: saved records still open, and a note waits to send", async () => {
