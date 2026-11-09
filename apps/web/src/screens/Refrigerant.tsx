@@ -27,7 +27,8 @@ export function RefrigerantPage(p: { refrigerant: RefrigerantApi; owner: boolean
   const cylinders = useLoad(() => p.refrigerant.cylinders(), [p.refrigerant]);
   const today = todayIso();
   const [from, setFrom] = useState(`${today.slice(0, 4)}-01-01`);
-  const [to, setTo] = useState(today);
+  // To the end of the year, so a job completed ahead of its booked date still shows.
+  const [to, setTo] = useState(`${today.slice(0, 4)}-12-31`);
   const log = useLoad(() => p.refrigerant.log(from, to), [p.refrigerant, from, to]);
   const [gas, setGas] = useState("");
   const [editing, setEditing] = useState<"new" | Cylinder | null>(null);

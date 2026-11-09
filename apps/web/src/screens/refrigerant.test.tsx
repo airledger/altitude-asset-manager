@@ -133,6 +133,7 @@ describe("refrigerant page", () => {
     const year = new Date().getFullYear();
     const gte = calls.find((c) => c.name === "refrigerant_log.gte")?.args;
     expect(gte).toEqual(["date", `${year}-01-01`]);
+    expect(calls.find((c) => c.name === "refrigerant_log.lte")?.args).toEqual(["date", `${year}-12-31`]);
   });
 
   it("adds a cylinder", async () => {
