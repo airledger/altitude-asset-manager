@@ -117,8 +117,10 @@ export interface InvoiceRow {
   sync_error?: string;
   amount_paid?: number;
   paid_at?: string | null;
+  /** The secret part of the invoice's card pay link. */
+  pay_token?: string;
   invoice_lines: LineRow[];
-  clients: { name: string } | null;
+  clients: { name: string; email?: string } | null;
   jobs: { id: string; type: string; date: string | null } | null;
 }
 
@@ -355,7 +357,7 @@ export function invoicesApi(sb: SupabaseClient, orgId: string) {
     async invoices(): Promise<InvoiceRow[]> {
       const { data, error } = await sb
         .from("invoices")
-        .select("*, invoice_lines(*), clients(name), jobs(id, type, date)")
+        .select("*, invoice_lines(*), clients(name, email), jobs(id, type, date)")
         .eq("org_id", orgId)
         .order("date", { ascending: false })
         .limit(2000);
@@ -365,7 +367,7 @@ export function invoicesApi(sb: SupabaseClient, orgId: string) {
     async invoice(id: string): Promise<InvoiceRow | null> {
       const { data, error } = await sb
         .from("invoices")
-        .select("*, invoice_lines(*), clients(name), jobs(id, type, date)")
+        .select("*, invoice_lines(*), clients(name, email), jobs(id, type, date)")
         .eq("id", id)
         .maybeSingle();
       fail(error);
@@ -374,7 +376,7 @@ export function invoicesApi(sb: SupabaseClient, orgId: string) {
     async jobInvoice(jobId: string): Promise<InvoiceRow | null> {
       const { data, error } = await sb
         .from("invoices")
-        .select("*, invoice_lines(*), clients(name), jobs(id, type, date)")
+        .select("*, invoice_lines(*), clients(name, email), jobs(id, type, date)")
         .eq("job_id", jobId)
         .maybeSingle();
       fail(error);

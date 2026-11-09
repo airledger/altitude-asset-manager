@@ -21,6 +21,7 @@ import { InvoicePage, InvoicesPage, PricingPage, ClientBillingCard } from "./Inv
 import { ContractsCard } from "./Contracts";
 import { contractsApi } from "../contracts";
 import { portalApi } from "../portal";
+import { paymentsApi } from "../payments";
 import { PortalCard } from "./PortalAdmin";
 import { invoicesApi } from "../invoices";
 import { reportsApi } from "../reports";
@@ -90,6 +91,7 @@ export function Shell(props: {
   const invoices = useMemo(() => invoicesApi(api.client, current.id), [api, current.id]);
   const contracts = useMemo(() => contractsApi(api.client, current.id), [api, current.id]);
   const portal = useMemo(() => portalApi(api.client), [api]);
+  const payments = useMemo(() => paymentsApi(api.client, current.id), [api, current.id]);
   const refrigerant = useMemo(() => refrigerantApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
@@ -189,9 +191,9 @@ export function Shell(props: {
         return r.page === "invoices" ? (
           <InvoicesPage invoices={invoices} jobs={jobs} query={r.query} />
         ) : r.page === "invoice" ? (
-          <InvoicePage invoices={invoices} id={r.arg} />
+          <InvoicePage invoices={invoices} id={r.arg} payments={payments} businessName={current.name} />
         ) : (
-          <PricingPage invoices={invoices} jobs={jobs} assets={assets} query={r.query} />
+          <PricingPage invoices={invoices} jobs={jobs} assets={assets} query={r.query} payments={payments} />
         );
       case "reports":
         return <ReportsPage reports={reports} />;

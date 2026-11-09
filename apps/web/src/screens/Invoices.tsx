@@ -21,6 +21,8 @@ import { download } from "../stickerPdf";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, todayIso, useLoad } from "./Assets";
+import type { PaymentsApi } from "../payments";
+import { CardPaymentsCard, InvoicePayCard } from "./Payments";
 
 const APP_LABEL = { xero: "Xero", quickbooks: "QuickBooks", sage: "Sage 50" } as const;
 const FILTERS = { draft: "To export", exported: "Exported", all: "All" } as const;
@@ -263,7 +265,12 @@ const toEdit = (l: InvoiceLine): EditLine => ({
   unit: String(l.unit),
 });
 
-export function InvoicePage(p: { invoices: InvoicesApi; id: string }) {
+export function InvoicePage(p: {
+  invoices: InvoicesApi;
+  id: string;
+  payments?: PaymentsApi;
+  businessName?: string;
+}) {
   const data = useLoad(() => p.invoices.invoice(p.id), [p.invoices, p.id]);
   if (data.value === undefined) return data.error ? <ErrorLine error={data.error} /> : <Loading />;
   if (!data.value)
@@ -275,7 +282,19 @@ export function InvoicePage(p: { invoices: InvoicesApi; id: string }) {
         </p>
       </section>
     );
-  return <InvoiceEditor invoices={p.invoices} inv={data.value} reload={data.reload} />;
+  return (
+    <>
+      <InvoiceEditor invoices={p.invoices} inv={data.value} reload={data.reload} />
+      {p.payments && (
+        <InvoicePayCard
+          payments={p.payments}
+          inv={data.value}
+          gross={totals(data.value).gross}
+          businessName={p.businessName ?? ""}
+        />
+      )}
+    </>
+  );
 }
 
 function InvoiceEditor({
@@ -629,6 +648,7 @@ export function PricingPage(p: {
   jobs: JobsApi;
   assets: Assets;
   query?: URLSearchParams;
+  payments?: PaymentsApi;
 }) {
   const data = useLoad(async () => {
     const [prices, accounts, materials, materialPrices] = await Promise.all([
@@ -641,6 +661,21 @@ export function PricingPage(p: {
   }, [p.invoices, p.jobs]);
   const act = useAction();
   const [saved, setSaved] = useState("");
+  // Stripe's set-up pages send the owner back to /?stripe=back#/pricing.
+  const [stripeCame] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const came = q.get("stripe") ?? "";
+    if (came) {
+      q.delete("stripe");
+      const rest = q.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash,
+      );
+    }
+    return came;
+  });
   if (!data.value) return data.error ? <ErrorLine error={data.error} /> : <Loading />;
   const { prices, accounts: a, materials, materialPrices } = data.value;
   const priceOf = new Map(materialPrices.map((m) => [m.material_id, m]));
@@ -833,6 +868,7 @@ export function PricingPage(p: {
         </div>
       </form>
       <LiveConnection invoices={p.invoices} came={p.query?.get("accounts") ?? ""} />
+      {p.payments && <CardPaymentsCard payments={p.payments} came={stripeCame} />}
     </>
   );
 }
