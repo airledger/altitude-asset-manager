@@ -279,6 +279,8 @@ export function JobPage(p: {
     [job.value, record.value, ctx.value],
   );
 
+  // Wait for the install, so the form doesn't reset its defaults (and what's been typed) when it arrives.
+  if (isNew && p.query.get("system") && ctx.value === undefined && !ctx.error) return <Loading />;
   if (isNew)
     return (
       <>
@@ -731,7 +733,12 @@ function BookJob(p: {
       go(`#/job/${id}`);
     });
   }
-  if ((engineer.value === undefined && !engineer.error) || (people.value === undefined && !people.error))
+  // The installs list too: until it's there the install picker is empty, and its "required" quietly blocks saving.
+  if (
+    (engineer.value === undefined && !engineer.error) ||
+    (people.value === undefined && !people.error) ||
+    (systems.value === undefined && !systems.error)
+  )
     return <Loading />;
   return (
     <form className="card form narrowform" onSubmit={submit} key={`${systemId}-${ctx ? "ctx" : "none"}`}>
