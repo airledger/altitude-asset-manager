@@ -315,6 +315,8 @@ export function SystemPage({
   if (!isNew && system.value === undefined) return <Loading />;
   if (!isNew && !system.value) return <NotFound what="install" />;
   if (isNew && !clientId) return <NotFound what="client" />;
+  // A new install needs its client before Save can work.
+  if (isNew && client.value === undefined && !client.error) return <Loading />;
   const s = system.value ?? null;
   const back = client.value && { href: `#/client/${client.value.id}`, label: client.value.name };
 
