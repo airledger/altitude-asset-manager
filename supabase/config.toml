@@ -419,3 +419,6 @@ enabled = true
 # the function checks the sign-in itself on every other call.
 [functions.accounts]
 verify_jwt = false
+
+[functions.payments]
+verify_jwt = false

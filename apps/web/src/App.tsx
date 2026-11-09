@@ -6,6 +6,8 @@ import { SetNewPassword, SignedOut } from "./screens/Auth";
 import { Onboard } from "./screens/Onboard";
 import { Shell } from "./screens/Shell";
 import { Portal } from "./screens/Portal";
+import { PayPage } from "./screens/Payments";
+import { payParams } from "./payments";
 import { portalApi, type MyPortal } from "./portal";
 import { clearSavedCopies, isNetworkError } from "./offline";
 import { supabase } from "./supabase";
@@ -13,6 +15,9 @@ import { Frame, Loading } from "./ui";
 import { ErrorLine } from "./useAction";
 
 export function App({ client = supabase }: { client?: SupabaseClient | null }) {
+  // A customer following an invoice's pay link: no sign-in, just the invoice and Pay.
+  const [pay] = useState(() => payParams());
+  if (client && pay) return <PayPage client={client} token={pay.token} paid={pay.paid} />;
   return client ? (
     <Account client={client} />
   ) : (

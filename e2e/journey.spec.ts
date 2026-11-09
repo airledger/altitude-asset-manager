@@ -229,6 +229,15 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await expect(page.getByRole("heading").first()).toBeVisible();
     // Not connected yet: the CSV export stays, and connecting is offered.
     await expect(page.getByRole("button", { name: "Connect Xero" })).toBeVisible();
+    // Card payments are offered (not clicked: that would make a Stripe account once Stripe is set up).
+    await expect(page.getByRole("button", { name: "Set up card payments" })).toBeVisible();
+  });
+
+  await step("A made-up pay link is turned away by the payments server", async () => {
+    await page.goto("/?pay=00000000-0000-4000-8000-000000000000");
+    await expect(page.getByText(/This pay link isn't valid/)).toBeVisible({ timeout: 30_000 });
+    await page.goto("/");
+    await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible({ timeout: 30_000 });
   });
 
   await step("Invoices: the completed job is drafted, edited and exported", async () => {
