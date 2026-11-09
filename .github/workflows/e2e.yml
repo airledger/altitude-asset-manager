@@ -58,6 +58,9 @@ jobs:
       - name: Use the app
         working-directory: e2e
         run: npx playwright test
+      - name: Show what the page looked like when a step failed
+        if: failure()
+        run: find e2e/test-results -name error-context.md -exec sh -c 'echo "===== $1"; head -c 12000 "$1"' _ {} \; || true
       - name: Remove the test accounts
         if: always()
         env:
