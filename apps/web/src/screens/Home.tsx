@@ -7,12 +7,14 @@ import { Icon } from "../icons";
 import { scheduleReminders } from "../native";
 import type { ContractsApi } from "../contracts";
 import type { JobsApi } from "../jobs";
+import type { PortalApi } from "../portal";
 import { jobsToOrder, loadOverview } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine } from "../useAction";
 import { todayIso, useLoad } from "./Assets";
 import { JobRows } from "./Jobs";
 import { RenewalsCard } from "./Contracts";
+import { RequestsCard } from "./PortalAdmin";
 import { ScanBox } from "./Stickers";
 
 const greeting = () => {
@@ -25,6 +27,8 @@ export function Home(p: {
   jobs: JobsApi;
   /** Owners see contracts coming up for renewal. */
   contracts?: ContractsApi;
+  /** Visit requests from customers' portals. */
+  portal?: PortalApi;
   current: Business;
   businesses: Business[];
   choose: (id: string) => void;
@@ -168,6 +172,7 @@ export function Home(p: {
           )}
         </section>
       </div>
+      {p.portal && <RequestsCard portal={p.portal} orgId={p.current.id} />}
       {owner && p.contracts && <RenewalsCard contracts={p.contracts} />}
       <div className="split">
         <ScanBox />

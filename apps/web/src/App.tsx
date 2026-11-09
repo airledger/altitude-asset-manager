@@ -5,6 +5,8 @@ import { keys, local } from "./local";
 import { SetNewPassword, SignedOut } from "./screens/Auth";
 import { Onboard } from "./screens/Onboard";
 import { Shell } from "./screens/Shell";
+import { Portal } from "./screens/Portal";
+import { portalApi, type MyPortal } from "./portal";
 import { clearSavedCopies, isNetworkError } from "./offline";
 import { supabase } from "./supabase";
 import { Frame, Loading } from "./ui";
@@ -125,22 +127,46 @@ function Account({ client }: { client: SupabaseClient }) {
 
 function SignedIn({ client, session }: { client: SupabaseClient; session: Session }) {
   const api = useMemo(() => makeApi(client), [client]);
+  const portal = useMemo(() => portalApi(client), [client]);
   const [businesses, setBusinesses] = useState<Business[] | undefined>(undefined);
+  const [portals, setPortals] = useState<MyPortal[] | undefined>(undefined);
   const [currentId, setCurrentId] = useState(() => local.get(keys.business));
   const [pendingInvite, setPendingInvite] = useState(() => !!local.get(keys.invite));
+  // A customer's portal link (?portal=), accepted once they're signed in.
+  const [portalCode, setPortalCode] = useState(() => local.get(keys.portal));
+  const [portalError, setPortalError] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(
     () =>
-      api.myBusinesses(session.user.id).then(
-        (list) => setBusinesses(list),
+      Promise.all([api.myBusinesses(session.user.id), portal.mine().catch(() => [] as MyPortal[])]).then(
+        ([list, mine]) => {
+          setBusinesses(list);
+          setPortals(mine);
+        },
         (e: Error) => setError(e.message),
       ),
-    [api, session.user.id],
+    [api, portal, session.user.id],
   );
   useEffect(() => {
+    if (portalCode) return;
     void load();
-  }, [load]);
+  }, [load, portalCode]);
+  useEffect(() => {
+    if (!portalCode) return;
+    void portal.accept(portalCode).then(
+      () => {
+        local.set(keys.portal, null);
+        setPortalCode(null);
+      },
+      (e: Error) => {
+        local.set(keys.portal, null);
+        setPortalError(e.message);
+        setPortalCode(null);
+      },
+    );
+  }, [portal, portalCode]);
+  const signOut = () => void clearSavedCopies().then(() => client.auth.signOut());
 
   function choose(id: string) {
     local.set(keys.business, id);
@@ -155,7 +181,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
         </section>
       </Frame>
     );
-  if (!businesses)
+  if (!businesses || !portals || portalCode)
     return (
       <Frame narrow>
         <SlowLoading />
@@ -163,6 +189,21 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
     );
 
   const current = businesses.find((b) => b.id === currentId) ?? businesses.at(0);
+  // Customers: signed in through a business's portal link, and not in any business's team.
+  if (!current && !pendingInvite && portals.length > 0)
+    return <Portal api={portal} portals={portals} email={session.user.email ?? ""} signOut={signOut} />;
+  if (!current && portalError)
+    return (
+      <Frame narrow>
+        <section className="card">
+          <h1>Portal link</h1>
+          <ErrorLine error={portalError} />
+          <button className="btn" onClick={signOut}>
+            Sign out
+          </button>
+        </section>
+      </Frame>
+    );
   if (pendingInvite || !current)
     return (
       <Frame narrow>
@@ -170,7 +211,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
           api={api}
           hasBusiness={businesses.length > 0}
           email={session.user.email ?? ""}
-          signOut={() => void clearSavedCopies().then(() => client.auth.signOut())}
+          signOut={signOut}
           joined={(id) => {
             setPendingInvite(false);
             choose(id);
@@ -188,7 +229,7 @@ function SignedIn({ client, session }: { client: SupabaseClient; session: Sessio
       current={current}
       choose={choose}
       reload={() => void load()}
-      signOut={() => void clearSavedCopies().then(() => client.auth.signOut())}
+      signOut={signOut}
     />
   );
 }

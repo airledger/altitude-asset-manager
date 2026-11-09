@@ -20,6 +20,7 @@ env:
   E2E_URL: https://airledger-beta.lingering-grass-c687.workers.dev
   E2E_OWNER: delivered+e2e-owner@resend.dev
   E2E_ENGINEER: delivered+e2e-engineer@resend.dev
+  E2E_CUSTOMER: delivered+e2e-customer@resend.dev
 
 jobs:
   e2e:
@@ -45,7 +46,7 @@ jobs:
           PW=$(openssl rand -hex 16)
           echo "::add-mask::$PW"
           echo "E2E_PASSWORD=$PW" >> "$GITHUB_ENV"
-          psql "$BETA_URL" -X -q -v pw="$PW" -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -f e2e/setup.sql
+          psql "$BETA_URL" -X -q -v pw="$PW" -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -v customer="$E2E_CUSTOMER" -f e2e/setup.sql
       - name: Install the test browsers
         working-directory: e2e
         run: |
@@ -61,7 +62,7 @@ jobs:
         if: always()
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_BETA_DB_PASSWORD }}
-        run: psql "$BETA_URL" -X -q -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -f e2e/cleanup.sql
+        run: psql "$BETA_URL" -X -q -v owner_desktop="${E2E_OWNER/@/-desktop@}" -v owner_iphone="${E2E_OWNER/@/-iphone@}" -v engineer="$E2E_ENGINEER" -v customer="$E2E_CUSTOMER" -f e2e/cleanup.sql
       - uses: actions/upload-artifact@v4
         if: always()
         with:

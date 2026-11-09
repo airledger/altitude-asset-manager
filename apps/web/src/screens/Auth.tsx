@@ -4,6 +4,7 @@ import { api, type InviteInfo } from "../api";
 import { keys, local } from "../local";
 import { ErrorLine, useAction } from "../useAction";
 import { appOrigin } from "../native";
+import { portalApi } from "../portal";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -12,7 +13,18 @@ const field = (form: FormData, name: string) => String(form.get(name) ?? "").tri
 /** Signed-out screens: sign in, sign up with an invite, and forgotten password. */
 export function SignedOut({ client }: { client: SupabaseClient }) {
   const [invite] = useState(() => local.get(keys.invite));
-  const [mode, setMode] = useState<Mode>(invite ? "signup" : "signin");
+  const [portalCode] = useState(() => local.get(keys.portal));
+  const [mode, setMode] = useState<Mode>(invite || portalCode ? "signup" : "signin");
+  // A customer's portal link: who it's from, and the email it was sent to.
+  const [portal, setPortal] = useState<
+    { orgName: string; clientName: string; email: string } | null | undefined
+  >(undefined);
+  useEffect(() => {
+    if (portalCode)
+      void portalApi(client)
+        .inviteInfo(portalCode)
+        .then(setPortal, () => setPortal(undefined));
+  }, [client, portalCode]);
   // undefined while checking, null when the invite has run out.
   const [info, setInfo] = useState<InviteInfo | null | undefined>(undefined);
   useEffect(() => {
@@ -25,9 +37,21 @@ export function SignedOut({ client }: { client: SupabaseClient }) {
     <>
       <Brand client={client} />
       {invite && <InviteNote info={info} />}
-      {mode === "signin" && <SignIn client={client} setMode={setMode} canSignUp={!!invite} />}
+      {portalCode && portal !== undefined && (
+        <p className="banner">
+          {portal
+            ? `${portal.orgName} has invited you to the ${portal.clientName} portal: your air conditioning units, visits and service reports in one place. Choose a password to get started, or sign in if you already use Air Ledger.`
+            : "This portal link has expired or has already been used. Ask for a new one."}
+        </p>
+      )}
+      {mode === "signin" && <SignIn client={client} setMode={setMode} canSignUp={!!invite || !!portalCode} />}
       {mode === "signup" && (
-        <SignUp client={client} setMode={setMode} email={info?.email ?? ""} key={info?.email ?? ""} />
+        <SignUp
+          client={client}
+          setMode={setMode}
+          email={info?.email || portal?.email || ""}
+          key={info?.email || portal?.email || ""}
+        />
       )}
       {mode === "forgot" && <Forgot client={client} setMode={setMode} />}
     </>

@@ -366,6 +366,15 @@ export function JobPage(p: {
         {statusPill(j)}
       </PageHead>
       <ErrorLine error={act.error || ctx.error || record.error} />
+      {j.status === "booked" && j.customer_response === "accepted" && (
+        <p className="banner ok">The customer accepted this visit in their portal.</p>
+      )}
+      {j.status === "booked" && j.customer_response === "change" && (
+        <p className="banner" role="status">
+          The customer asked for another time{j.customer_note ? `: "${j.customer_note}"` : "."} Reschedule it
+          and they'll be asked again.
+        </p>
+      )}
       {waiting && (
         <p className="banner">
           {waiting.error
@@ -710,6 +719,8 @@ function BookJob(p: {
         engineer: team.find((x) => x.id === f.text("engineer_id"))?.name ?? "",
         notes: f.text("notes"),
       });
+      const request = p.query.get("request");
+      if (!j && request) await p.jobs.linkRequest(request, id);
       go(`#/job/${id}`);
     });
   }
@@ -756,7 +767,7 @@ function BookJob(p: {
         <Text name="time" label="Time (optional)" type="time" value={j?.time?.slice(0, 5)} />
         <Text name="duration_hrs" label="Allow (hours)" type="number" value={duration} />
       </div>
-      <Area name="notes" label="Notes for the engineer" value={j?.notes} />
+      <Area name="notes" label="Notes for the engineer" value={j?.notes ?? p.query.get("notes") ?? ""} />
       <div className="row">
         <button className="btn pri" type="submit" disabled={busy || !systemId}>
           {busy ? "Saving…" : j ? "Save" : "Book job"}
