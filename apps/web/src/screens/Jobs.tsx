@@ -28,6 +28,7 @@ import {
   toPart,
   toUnit,
   type JobListRow,
+  type CylinderOption,
   type JobRecord,
   type JobRow,
   type JobsApi,
@@ -43,6 +44,7 @@ import type { InvoicesApi } from "../invoices";
 import { JobBillingCard } from "./Invoices";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
+import { cylinderName, pickable } from "../refrigerant";
 import { go, todayIso, unitTitle, useLoad } from "./Assets";
 
 const FILTERS = { booked: "Booked", completed: "Completed", cancelled: "Cancelled", all: "All" } as const;
@@ -130,6 +132,9 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
         <a className="btn" href="#/orders">
           Parts to order
         </a>
+        <a className="btn" href="#/refrigerant">
+          Refrigerant
+        </a>
         <a className="btn" href="#/reports">
           <Icon name="report" size={18} />
           Reports
@@ -203,15 +208,17 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
 function useJobContext(assets: Assets, jobs: JobsApi, systemId: string | null | undefined) {
   return useLoad(async () => {
     if (!systemId) return null;
-    const [system, units, history, materials, settings] = await Promise.all([
+    const [system, units, history, materials, settings, cylinders] = await Promise.all([
       assets.system(systemId),
       assets.units(systemId),
       jobs.systemJobs(systemId),
       jobs.materials(),
       assets.ruleSettings(),
+      // Not needed to complete a job, so a failure (no signal, nothing cached) just hides the cylinder picker.
+      jobs.cylinders().catch((): CylinderOption[] => []),
     ]);
     if (!system) return null;
-    return { system, units, history, materials, settings: toSettings(settings) };
+    return { system, units, history, materials, settings: toSettings(settings), cylinders };
   }, [assets, jobs, systemId]);
 }
 type Ctx = NonNullable<ReturnType<typeof useJobContext>["value"]>;
@@ -786,6 +793,31 @@ function BookJob(p: {
 
 // ---------- completing ----------
 
+/** Which cylinder gas came from or went into, for the refrigerant log. Hidden until the business adds one. */
+function CylinderPick(p: {
+  name: string;
+  label: string;
+  kind: "new" | "recovery";
+  ctx: Ctx;
+  value: string | null | undefined;
+}) {
+  const list = pickable(p.ctx.cylinders, p.kind, p.ctx.system.refrigerant, p.value);
+  if (!list.length) return null;
+  return (
+    <label>
+      {p.label}
+      <select name={p.name} defaultValue={p.value ?? ""}>
+        <option value="">Not recorded</option>
+        {list.map((c) => (
+          <option key={c.id} value={c.id}>
+            {cylinderName(c)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function CompleteJob(p: {
   assets: Assets;
   jobs: JobsApi;
@@ -843,6 +875,8 @@ function CompleteJob(p: {
               added_kg: f.num("lc_added"),
               recovered_kg: f.num("lc_recovered"),
               notes: f.text("lc_notes"),
+              added_cylinder: f.orNull("lc_added_cyl"),
+              recovered_cylinder: f.orNull("lc_recovered_cyl"),
             },
         commissioning: install
           ? {
@@ -855,6 +889,7 @@ function CompleteJob(p: {
               added_kg: f.num("cm_added"),
               customer_name: f.text("cm_customer"),
               handover: f.bool("cm_handover"),
+              added_cylinder: f.orNull("cm_added_cyl"),
             }
           : null,
         parts_used: parts.map(toPart),
@@ -975,6 +1010,13 @@ function CompleteJob(p: {
               type="number"
               value={cm?.added_kg ?? ctx.system.added_charge_kg}
             />
+            <CylinderPick
+              name="cm_added_cyl"
+              label="Charged from cylinder"
+              kind="new"
+              ctx={ctx}
+              value={cm?.added_cylinder}
+            />
             <Text name="cm_customer" label="Customer name (handover)" value={cm?.customer_name} />
           </div>
           <div className="ticks">
@@ -1017,6 +1059,20 @@ function CompleteJob(p: {
               label="Refrigerant recovered (kg)"
               type="number"
               value={lc?.recovered_kg}
+            />
+            <CylinderPick
+              name="lc_added_cyl"
+              label="Added from cylinder"
+              kind="new"
+              ctx={ctx}
+              value={lc?.added_cylinder}
+            />
+            <CylinderPick
+              name="lc_recovered_cyl"
+              label="Recovered into cylinder"
+              kind="recovery"
+              ctx={ctx}
+              value={lc?.recovered_cylinder}
             />
           </div>
           <Text name="lc_notes" label="Leak notes" value={lc?.notes} />

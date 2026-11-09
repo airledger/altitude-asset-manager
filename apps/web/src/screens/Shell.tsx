@@ -13,6 +13,8 @@ import { JobPage, JobsPage, MaterialsPage } from "./Jobs";
 import { OrdersPage } from "./Orders";
 import { OutboxBar } from "./Outbox";
 import { RegisterPage } from "./Register";
+import { RefrigerantPage } from "./Refrigerant";
+import { refrigerantApi } from "../refrigerant";
 import { RemindersPage } from "./Reminders";
 import { ReportsPage } from "./Reports";
 import { InvoicePage, InvoicesPage, PricingPage, ClientBillingCard } from "./Invoices";
@@ -55,7 +57,7 @@ export function readHash(hash = window.location.hash): Route {
 const tabOf = (page: string): Tab =>
   ["client", "system", "register"].includes(page)
     ? "clients"
-    : ["job", "schedule", "orders", "reports"].includes(page)
+    : ["job", "schedule", "orders", "reports", "refrigerant"].includes(page)
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
@@ -88,6 +90,7 @@ export function Shell(props: {
   const invoices = useMemo(() => invoicesApi(api.client, current.id), [api, current.id]);
   const contracts = useMemo(() => contractsApi(api.client, current.id), [api, current.id]);
   const portal = useMemo(() => portalApi(api.client), [api]);
+  const refrigerant = useMemo(() => refrigerantApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -196,6 +199,8 @@ export function Shell(props: {
         return <RemindersPage assets={assets} jobs={jobs} business={current} query={r.query} />;
       case "orders":
         return <OrdersPage assets={assets} jobs={jobs} query={r.query} />;
+      case "refrigerant":
+        return <RefrigerantPage refrigerant={refrigerant} owner={owner} />;
       case "register":
         return <RegisterPage assets={assets} jobs={jobs} business={current} />;
       case "schedule":

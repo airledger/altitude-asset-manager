@@ -1612,3 +1612,20 @@ ul.plain {
   display: grid;
   gap: 8px;
 }
+
+/* ---------- cylinder level ---------- */
+.meter {
+  display: block;
+  height: 6px;
+  max-width: 240px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+}

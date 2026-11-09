@@ -250,3 +250,50 @@ describe("asset numbers", () => {
     expect(await screen.findByText("Asset #1")).toBeTruthy();
   });
 });
+
+describe("refrigerant on a job", () => {
+  const cyl = (id: string, code: string, kind: string, refrigerant = "R410A", status = "in_use") => ({
+    id,
+    code,
+    refrigerant,
+    kind,
+    status,
+  });
+
+  it("records which cylinder gas came from and went into", async () => {
+    window.location.hash = "#/job/j1?do=complete";
+    const calls = app(member, {
+      cylinders: [
+        cyl("y1", "BOC 1", "new"),
+        cyl("y2", "BOC 2", "new", "R32"),
+        cyl("y3", "REC 1", "recovery"),
+        cyl("y4", "OLD", "new", "R410A", "empty"),
+      ],
+    });
+    const from = (await screen.findByLabelText("Added from cylinder")) as HTMLSelectElement;
+    // In-use new-gas cylinders only, the install's own gas first.
+    expect([...from.options].map((o) => o.text)).toEqual([
+      "Not recorded",
+      "BOC 1 · R410A new gas",
+      "BOC 2 · R32 new gas",
+    ]);
+    fireEvent.change(screen.getByLabelText("Refrigerant added (kg)"), { target: { value: "1.5" } });
+    fireEvent.change(from, { target: { value: "y1" } });
+    fireEvent.change(screen.getByLabelText("Recovered into cylinder"), { target: { value: "y3" } });
+    fireEvent.click(screen.getByRole("button", { name: /Complete job/ }));
+    await waitFor(() => expect(calls.some((c) => c.name === "complete_job")).toBe(true));
+    const args = calls.find((c) => c.name === "complete_job")?.args as { p: Record<string, unknown> };
+    expect(args.p.leak_check).toMatchObject({
+      added_kg: 1.5,
+      added_cylinder: "y1",
+      recovered_cylinder: "y3",
+    });
+  });
+
+  it("hides the cylinder picker until the business adds a cylinder", async () => {
+    window.location.hash = "#/job/j1?do=complete";
+    app(member);
+    expect(await screen.findByLabelText("Refrigerant added (kg)")).toBeTruthy();
+    expect(screen.queryByLabelText("Added from cylinder")).toBeNull();
+  });
+});

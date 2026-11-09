@@ -129,6 +129,9 @@ export interface LeakCheckRow {
   added_kg: number | null;
   recovered_kg: number | null;
   notes: string;
+  /** Which cylinder the gas came from and went into (refrigerant log). */
+  added_cylinder?: string | null;
+  recovered_cylinder?: string | null;
 }
 
 export interface CommissioningRow {
@@ -141,6 +144,15 @@ export interface CommissioningRow {
   added_kg: number | null;
   customer_name: string;
   handover: boolean;
+  added_cylinder?: string | null;
+}
+
+export interface CylinderOption {
+  id: string;
+  code: string;
+  refrigerant: string;
+  kind: "new" | "recovery";
+  status: "in_use" | "empty" | "returned";
 }
 
 export interface Completion {
@@ -373,6 +385,16 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
       fail(error);
     },
 
+    /** The business's cylinders, to pick which one gas came from or went into. */
+    async cylinders(): Promise<CylinderOption[]> {
+      const { data, error } = await sb
+        .from("cylinders")
+        .select("id, code, refrigerant, kind, status")
+        .eq("org_id", orgId)
+        .order("code");
+      fail(error);
+      return (data ?? []) as CylinderOption[];
+    },
     async materials(): Promise<MaterialRow[]> {
       const { data, error } = await sb
         .from("materials")
