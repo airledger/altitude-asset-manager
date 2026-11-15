@@ -863,7 +863,7 @@ function UnitForm(p: {
   return (
     <form className="subform" onSubmit={submit}>
       <h2>{u ? `Edit ${u.sticker_code}` : "New unit"}</h2>
-      <ErrorLine error={error} />
+      <ErrorLine error={error || (catalogue.error && `Couldn't load the catalogue: ${catalogue.error}`)} />
       {!u && (
         <Text name="sticker_code" label="Pre-printed label code (blank = make a new one)" value={p.sticker} />
       )}

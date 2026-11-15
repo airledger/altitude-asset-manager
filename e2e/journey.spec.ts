@@ -137,9 +137,9 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
         .click();
       await page.getByLabel(type, { exact: true }).check();
       await page.getByLabel("Manufacturer", { exact: true }).fill(maker);
-      // From the catalogue: range, then size, fills in the model and capacity.
-      await page.getByLabel("Range", { exact: true }).selectOption("Perfera");
-      await page.getByLabel("Size", { exact: true }).selectOption({ index: 2 });
+      // From the catalogue: range, then size (selects by role: a select's label text includes its options), fills in the model and capacity.
+      await page.getByRole("combobox", { name: "Range", exact: true }).selectOption("Perfera");
+      await page.getByRole("combobox", { name: "Size", exact: true }).selectOption({ index: 2 });
       await expect(page.getByLabel("Model", { exact: true })).toHaveValue(/^(FTXM|RXM)25R$/);
       await expect(page.getByLabel("Capacity (kW)", { exact: true })).toHaveValue("2.5");
       await page.getByRole("button", { name: "Save" }).click();
