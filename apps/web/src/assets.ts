@@ -89,7 +89,33 @@ export interface UnitRow {
   condensate_pump: boolean;
   from_sticker: boolean;
   notes: string;
+  /** Blank means the install's warranty end (install date + warranty years). */
+  warranty_end: string | null;
+  warranty_registered: boolean;
+  warranty_ref: string;
+  created_at?: string;
 }
+
+/** A document uploaded against an install, and optionally one of its units. */
+export interface DocumentRow {
+  id: string;
+  system_id: string;
+  unit_id: string | null;
+  kind: "warranty" | "rams" | "other";
+  name: string;
+  file_id: string;
+  created_at: string;
+}
+
+/** A unit's warranty end: its own, or else the install's. */
+export const unitWarrantyEnd = (u: Pick<UnitRow, "warranty_end">, installEnd: string | null) =>
+  u.warranty_end || installEnd;
+
+const safeName = (name: string) =>
+  name
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(-80) || "document";
 
 export type StickerRow = Pick<
   UnitRow,
@@ -397,6 +423,74 @@ export function assets(sb: SupabaseClient, orgId: string) {
         .single();
       fail(error);
       return (data as { id: string }).id;
+    },
+
+    async documents(systemId: string): Promise<DocumentRow[]> {
+      const { data, error } = await sb
+        .from("documents")
+        .select("id, system_id, unit_id, kind, name, file_id, created_at")
+        .eq("system_id", systemId)
+        .order("created_at", { ascending: false });
+      fail(error);
+      return (data ?? []) as DocumentRow[];
+    },
+
+    /** Uploads a document (PDF or photo) into the business's folder and files it against the install. */
+    async uploadDocument(
+      systemId: string,
+      unitId: string | null,
+      file: File,
+      kind: DocumentRow["kind"] = "warranty",
+    ): Promise<void> {
+      if (file.size > 20 * 1024 * 1024) throw new Error("That file is over 20 MB. Try a smaller scan.");
+      const path = `${orgId}/docs/${crypto.randomUUID()}-${safeName(file.name)}`;
+      const up = await sb.storage
+        .from("photos")
+        .upload(path, file, { contentType: file.type || "application/octet-stream" });
+      fail(up.error);
+      const f = await sb
+        .from("files")
+        .insert({
+          org_id: orgId,
+          bucket: "photos",
+          path,
+          kind: "document",
+          content_type: file.type,
+          size_bytes: file.size,
+        })
+        .select("id")
+        .single();
+      fail(f.error);
+      const { error } = await sb.from("documents").insert({
+        org_id: orgId,
+        system_id: systemId,
+        unit_id: unitId,
+        kind,
+        name: file.name.trim() || "Document",
+        file_id: (f.data as { id: string }).id,
+      });
+      fail(error);
+    },
+
+    /** A link to open a document for the next ten minutes. */
+    async documentUrl(fileId: string): Promise<string> {
+      const f = await sb.from("files").select("path").eq("id", fileId).single();
+      fail(f.error);
+      const { data, error } = await sb.storage
+        .from("photos")
+        .createSignedUrl((f.data as { path: string }).path, 600);
+      fail(error);
+      return data?.signedUrl ?? "";
+    },
+
+    /** Removes the document, its file record (which takes the document with it) and the stored file. */
+    async deleteDocument(d: DocumentRow): Promise<void> {
+      const f = await sb.from("files").select("path").eq("id", d.file_id).maybeSingle();
+      fail(f.error);
+      const { error } = await sb.from("files").delete().eq("id", d.file_id).eq("org_id", orgId);
+      fail(error);
+      const path = (f.data as { path: string } | null)?.path;
+      if (path) await sb.storage.from("photos").remove([path]);
     },
 
     /** Short-lived links for showing photos (the bucket is private). */

@@ -24,6 +24,7 @@ import {
   type ReminderSettings,
   type SystemRow,
   type UnitRow,
+  unitWarrantyEnd,
 } from "./assets";
 import { toJob, toMaterial, toUnit, type JobListRow, type JobsApi, type MaterialRow } from "./jobs";
 
@@ -154,5 +155,34 @@ export function bySupplier(list: OrderJob[]): [string, MaterialLine[]][] {
   for (const l of total) m.set(l.supplier || "Unassigned", [...(m.get(l.supplier || "Unassigned") ?? []), l]);
   return [...m.entries()].sort(([a], [b]) =>
     a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b),
+  );
+}
+
+export interface WarrantyAlert {
+  unit: UnitRow;
+  site: SiteView;
+  end: string;
+  why: "ending" | "unregistered";
+}
+
+/**
+ * Warranties to act on: ones running out in the next 60 days, and units installed in the last 60 days that
+ * haven't been registered with the manufacturer (most want it within 30 days, or the extended warranty is lost).
+ */
+export function warrantyAlerts(o: Pick<Overview, "sites" | "today">, days = 60): WarrantyAlert[] {
+  const soon = addDays(o.today, days);
+  const since = addDays(o.today, -days);
+  const out: WarrantyAlert[] = [];
+  for (const site of o.sites)
+    for (const unit of site.units) {
+      const end = unitWarrantyEnd(unit, site.info.warrantyEnd);
+      if (!end || end < o.today) continue;
+      const fitted = site.system.install_date ?? unit.created_at?.slice(0, 10) ?? "";
+      if (end <= soon) out.push({ unit, site, end, why: "ending" });
+      else if (!unit.warranty_registered && fitted >= since)
+        out.push({ unit, site, end, why: "unregistered" });
+    }
+  return out.sort((a, b) =>
+    a.why === b.why ? a.end.localeCompare(b.end) : a.why === "unregistered" ? -1 : 1,
   );
 }
