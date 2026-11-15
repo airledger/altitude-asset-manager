@@ -18,6 +18,8 @@ export function PortalCard(p: { portal: PortalApi; assets: Assets; clientId: str
   const [sent, setSent] = useState<{ link: string; email: string } | null>(null);
   const act = useAction();
   const a = data.value;
+  // The client's email until something is typed; typing early isn't wiped when the client loads.
+  const [typed, setTyped] = useState<string | null>(null);
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,6 +27,7 @@ export function PortalCard(p: { portal: PortalApi; assets: Assets; clientId: str
     void act.run(async () => {
       const code = await p.portal.createInvite(p.clientId, email);
       setSent({ link: portalLink(code), email });
+      setTyped(null);
       data.reload();
     });
   }
@@ -110,8 +113,8 @@ export function PortalCard(p: { portal: PortalApi; assets: Assets; clientId: str
               name="email"
               type="email"
               required
-              defaultValue={client.value?.email ?? ""}
-              key={client.value?.email ?? ""}
+              value={typed ?? client.value?.email ?? ""}
+              onChange={(e) => setTyped(e.currentTarget.value)}
             />
           </label>
           <button className="btn pri" type="submit" disabled={act.busy}>

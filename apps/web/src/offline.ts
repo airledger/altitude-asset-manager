@@ -21,7 +21,13 @@ function setUsingCopy(v: boolean) {
   listeners.forEach((fn) => fn());
 }
 // When the signal comes back, stop saying "No signal" straight away rather than waiting for the next read.
-if (typeof window !== "undefined") window.addEventListener("online", () => setUsingCopy(false));
+// A read that started before then and fails afterwards is old news, so it doesn't bring the message back.
+let backOnlineAt = 0;
+if (typeof window !== "undefined")
+  window.addEventListener("online", () => {
+    backOnlineAt = Date.now();
+    setUsingCopy(false);
+  });
 
 /** A fetch failure caused by having no connection, rather than the server saying no. */
 export function isNetworkError(e: unknown): boolean {
@@ -49,6 +55,7 @@ export function cachingFetch(base: typeof fetch = fetch): typeof fetch {
     const req = new Request(input, init);
     const isRead = req.method === "GET" && req.url.includes("/rest/v1/");
     if (!isRead || typeof caches === "undefined") return base(req);
+    const started = Date.now();
     try {
       const res = await base(req.clone());
       if (res.ok) {
@@ -66,7 +73,7 @@ export function cachingFetch(base: typeof fetch = fetch): typeof fetch {
         .then((c) => c.match(cacheKey(req)))
         .catch(() => undefined);
       if (!saved) throw e;
-      setUsingCopy(true);
+      if (started >= backOnlineAt) setUsingCopy(true);
       return saved;
     }
   };
