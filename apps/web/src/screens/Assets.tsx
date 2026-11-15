@@ -28,6 +28,15 @@ import { SiteRecords } from "./SiteRecords";
 import { SystemJobs } from "./Jobs";
 import { toJob, type JobsApi } from "../jobs";
 import { ErrorLine, useAction } from "../useAction";
+import {
+  findModel,
+  manufacturers,
+  modelsFor,
+  ranges,
+  sizeLabel,
+  sizes,
+  type EquipmentModel,
+} from "../catalogue";
 
 const REFRIGERANTS = [...Object.keys(REFRIGERANT_GWP), "Other"] as const;
 export const todayIso = (): IsoDate => new Date().toLocaleDateString("en-CA") as IsoDate;
@@ -478,6 +487,7 @@ export function SystemPage({
           <UnitForm
             assets={assets}
             systemId={s.id}
+            system={s}
             sticker={sticker}
             unit={null}
             done={() => {
@@ -784,6 +794,8 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
 function UnitForm(p: {
   assets: Assets;
   systemId: string;
+  /** The install, so a unit picked from the catalogue can set its refrigerant and charge. */
+  system?: SystemRow | null;
   sticker?: string | null;
   unit: UnitRow | null;
   done: () => void;
@@ -791,7 +803,34 @@ function UnitForm(p: {
 }) {
   const u = p.unit;
   const { busy, error, setError, run } = useAction();
+  const catalogue = useLoad(() => p.assets.equipment(), [p.assets]);
+  const list = catalogue.value ?? [];
   const [role, setRole] = useState<"indoor" | "outdoor">(u?.role ?? "indoor");
+  const [make, setMake] = useState(u?.manufacturer ?? "");
+  const [model, setModel] = useState(u?.model ?? "");
+  const [capacity, setCapacity] = useState(u?.capacity_kw == null ? "" : String(u.capacity_kw));
+  const [indoorType, setIndoorType] = useState(u?.indoor_type ?? "");
+  const [range, setRange] = useState("");
+  const rangeList = ranges(list, make, role);
+  const sizeList = range ? sizes(list, make, range, role) : [];
+  const picked = findModel(list, make, model);
+  const sys = p.system;
+  const gas =
+    role === "outdoor" && picked?.refrigerant && sys
+      ? {
+          refrigerant: picked.refrigerant,
+          charge: picked.charge_kg,
+          offer:
+            sys.refrigerant !== picked.refrigerant ||
+            (picked.charge_kg != null && sys.factory_charge_kg !== picked.charge_kg),
+        }
+      : null;
+
+  function fillFrom(e: EquipmentModel) {
+    if (e.model) setModel(e.model);
+    if (e.capacity_kw != null) setCapacity(String(e.capacity_kw));
+    if (e.role === "indoor" && e.indoor_type) setIndoorType(e.indoor_type);
+  }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = readForm(e.currentTarget);
@@ -816,6 +855,8 @@ function UnitForm(p: {
         condensate_pump: f.bool("condensate_pump"),
         notes: f.text("notes"),
       });
+      if (gas?.offer && sys && f.bool("use_gas"))
+        await p.assets.setSystemGas(sys.id, gas.refrigerant, gas.charge);
       p.done();
     });
   }
@@ -829,19 +870,124 @@ function UnitForm(p: {
       <div className="row" role="radiogroup" aria-label="Unit type">
         {(["indoor", "outdoor"] as const).map((r) => (
           <label key={r} className="check">
-            <input type="radio" name="role" checked={role === r} onChange={() => setRole(r)} />
+            <input
+              type="radio"
+              name="role"
+              checked={role === r}
+              onChange={() => {
+                setRole(r);
+                setRange("");
+              }}
+            />
             {r === "indoor" ? "Indoor" : "Outdoor"}
           </label>
         ))}
       </div>
-      {role === "indoor" && (
-        <Pick name="indoor_type" label="Indoor type" value={u?.indoor_type} options={INDOOR_TYPES} blank="" />
+      <label>
+        Manufacturer
+        <input
+          name="manufacturer"
+          list="catalogue-makes"
+          autoComplete="off"
+          value={make}
+          onChange={(e) => {
+            setMake(e.currentTarget.value);
+            setRange("");
+          }}
+        />
+        <datalist id="catalogue-makes">
+          {manufacturers(list, role).map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </label>
+      {rangeList.length > 0 && (
+        <div className="grid2">
+          <label>
+            Range
+            <select value={range} onChange={(e) => setRange(e.currentTarget.value)}>
+              <option value="">Choose a range, or type the model below</option>
+              {rangeList.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+          {range && (
+            <label>
+              Size
+              <select
+                value=""
+                onChange={(e) => {
+                  const hit = sizeList.find((x) => x.id === e.currentTarget.value);
+                  if (hit) fillFrom(hit);
+                }}
+              >
+                <option value="">Choose a size</option>
+                {sizeList.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {sizeLabel(x)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       )}
-      <Text name="manufacturer" label="Manufacturer" value={u?.manufacturer} />
-      <Text name="model" label="Model" value={u?.model} />
+      {role === "indoor" && (
+        <label>
+          Indoor type
+          <select
+            name="indoor_type"
+            value={indoorType}
+            onChange={(e) => setIndoorType(e.currentTarget.value)}
+          >
+            <option value=""></option>
+            {INDOOR_TYPES.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label>
+        Model
+        <input
+          name="model"
+          list="catalogue-models"
+          autoComplete="off"
+          value={model}
+          onChange={(e) => {
+            const v = e.currentTarget.value;
+            setModel(v);
+            const hit = findModel(list, make, v);
+            if (hit) fillFrom(hit);
+          }}
+        />
+        <datalist id="catalogue-models">
+          {modelsFor(list, make, role).map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </label>
       <Text name="serial" label="Serial number" value={u?.serial} />
-      <Text name="capacity_kw" label="Capacity (kW)" type="number" value={u?.capacity_kw} />
+      <label>
+        Capacity (kW)
+        <input
+          name="capacity_kw"
+          type="number"
+          step="any"
+          value={capacity}
+          onChange={(e) => setCapacity(e.currentTarget.value)}
+        />
+      </label>
       <Text name="location" label="Location (e.g. Office 2)" value={u?.location} />
+      {gas?.offer && (
+        <Check
+          key={`${gas.refrigerant}-${gas.charge}`}
+          name="use_gas"
+          label={`Set the install's refrigerant to ${gas.refrigerant}${gas.charge != null ? ` and factory charge to ${gas.charge} kg` : ""}`}
+          value={sys?.factory_charge_kg == null || !sys.refrigerant}
+        />
+      )}
       {role === "indoor" && (
         <>
           <Pick name="filter_type" label="Filter" value={u?.filter_type} options={FILTER_TYPES} blank="" />
@@ -850,6 +996,9 @@ function UnitForm(p: {
         </>
       )}
       <Area name="notes" label="Notes" value={u?.notes} />
+      <p className="note">
+        Not in the list? Type the make and model from the rating plate: it's remembered for next time.
+      </p>
       <FormButtons busy={busy} cancel={p.cancel} />
     </form>
   );

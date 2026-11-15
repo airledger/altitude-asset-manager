@@ -45,6 +45,7 @@ import { JobBillingCard } from "./Invoices";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { cylinderName, pickable } from "../refrigerant";
+import type { CataloguePart } from "../catalogue";
 import { go, todayIso, unitTitle, useLoad } from "./Assets";
 
 const FILTERS = { booked: "Booked", completed: "Completed", cancelled: "Cancelled", all: "All" } as const;
@@ -800,6 +801,44 @@ function BookJob(p: {
 
 // ---------- completing ----------
 
+/** A part that isn't on the materials list: type it (or pick a common one) and add it to the job. */
+function OtherPart(p: { names: string[]; add: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const add = () => {
+    if (!name.trim()) return;
+    p.add(name.trim());
+    setName("");
+  };
+  return (
+    <div className="row">
+      <label className="grow">
+        Another part
+        <input
+          list="other-parts"
+          autoComplete="off"
+          value={name}
+          placeholder="Type or pick a part"
+          onChange={(e) => setName(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <datalist id="other-parts">
+          {p.names.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      </label>
+      <button type="button" className="btn" disabled={!name.trim()} onClick={add}>
+        Add
+      </button>
+    </div>
+  );
+}
+
 /** Which cylinder gas came from or went into, for the refrigerant log. Hidden until the business adds one. */
 function CylinderPick(p: {
   name: string;
@@ -925,6 +964,7 @@ function CompleteJob(p: {
   }
 
   const addable = ctx.materials.filter((m) => m.active && !parts.some((x) => x.id === m.id));
+  const common = useLoad(() => p.jobs.partCatalogue().catch((): CataloguePart[] => []), [p.jobs]);
   if (engineer.value === undefined && !engineer.error) return <Loading />;
   return (
     <form className="stack complete" onSubmit={submit}>
@@ -1117,6 +1157,14 @@ function CompleteJob(p: {
             </li>
           ))}
         </ul>
+        <OtherPart
+          names={[
+            ...new Set([...ctx.materials.map((m) => m.name), ...(common.value ?? []).map((c) => c.name)]),
+          ]}
+          add={(name) =>
+            setParts((ps) => [...ps, { id: "", name, sku: "", supplier: "", qty: 1, raw: 1, extra: true }])
+          }
+        />
         {addable.length > 0 && (
           <label>
             Add a part
@@ -1338,6 +1386,9 @@ function MaterialForm({
 }) {
   const m = material;
   const { busy, error, run } = useAction();
+  const common = useLoad(() => (m ? Promise.resolve([]) : jobs.partCatalogue()), [jobs, m]);
+  const [preset, setPreset] = useState<CataloguePart | null>(null);
+  const d = m ?? preset;
   const appliesKeys = Object.keys(APPLIES_TO) as (keyof typeof APPLIES_TO)[];
   const whenKeys = Object.keys(NEEDED_WHEN) as (keyof typeof NEEDED_WHEN)[];
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -1361,13 +1412,27 @@ function MaterialForm({
     <form className="card form narrowform" onSubmit={submit}>
       <h2>{m ? `Edit ${m.name}` : "New material"}</h2>
       <ErrorLine error={error} />
-      <Text name="name" label="Name" value={m?.name} required />
-      <div className="grid2">
+      {!m && (common.value ?? []).length > 0 && (
+        <label>
+          Pick a common part
+          <select
+            value={preset?.name ?? ""}
+            onChange={(e) => setPreset(common.value?.find((x) => x.name === e.currentTarget.value) ?? null)}
+          >
+            <option value="">Or type your own below</option>
+            {(common.value ?? []).map((x) => (
+              <option key={x.name}>{x.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <Text key={`name-${preset?.name}`} name="name" label="Name" value={d?.name} required />
+      <div className="grid2" key={`kit-${preset?.name}`}>
         <Text name="supplier" label="Supplier" value={m?.supplier} />
         <Text name="sku" label="Supplier code" value={m?.sku} />
         <label>
           Counted
-          <select name="applies_to" defaultValue={m?.applies_to ?? "visit"}>
+          <select name="applies_to" defaultValue={d?.applies_to ?? "visit"}>
             {appliesKeys.map((k) => (
               <option key={k} value={k}>
                 {APPLIES_TO[k]}
@@ -1375,10 +1440,10 @@ function MaterialForm({
             ))}
           </select>
         </label>
-        <Text name="qty_per" label="How many each" type="number" value={m?.qty_per ?? 1} />
+        <Text name="qty_per" label="How many each" type="number" value={d?.qty_per ?? 1} />
         <label>
           Needed
-          <select name="needed_when" defaultValue={m?.needed_when ?? "service"}>
+          <select name="needed_when" defaultValue={d?.needed_when ?? "service"}>
             {whenKeys.map((k) => (
               <option key={k} value={k}>
                 {NEEDED_WHEN[k]}
