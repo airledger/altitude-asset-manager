@@ -8,7 +8,8 @@ import { scheduleReminders } from "../native";
 import type { ContractsApi } from "../contracts";
 import type { JobsApi } from "../jobs";
 import type { PortalApi } from "../portal";
-import { jobsToOrder, loadOverview } from "../overview";
+import { formatDate } from "@airledger/domain";
+import { jobsToOrder, loadOverview, warrantyAlerts, type Overview } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine } from "../useAction";
 import { todayIso, useLoad } from "./Assets";
@@ -174,6 +175,7 @@ export function Home(p: {
       </div>
       {p.portal && <RequestsCard portal={p.portal} orgId={p.current.id} />}
       {owner && p.contracts && <RenewalsCard contracts={p.contracts} />}
+      {o && <WarrantyCard o={o} />}
       <div className="split">
         <ScanBox />
         <section className="card linkcard">
@@ -208,5 +210,36 @@ export function Home(p: {
         </button>
       </p>
     </>
+  );
+}
+
+/** Units whose warranty runs out soon, or that were fitted recently and aren't registered with the maker yet. */
+function WarrantyCard({ o }: { o: Overview }) {
+  const list = warrantyAlerts(o);
+  if (!list.length) return null;
+  return (
+    <section className="card" aria-label="Warranties">
+      <h2>Warranties</h2>
+      <ul className="rows">
+        {list.slice(0, 12).map(({ unit: u, site, end, why }) => (
+          <li key={u.id}>
+            <a className="item" href={`#/u/${u.sticker_code}`}>
+              <span className="main">
+                <span className="t">
+                  {site.client?.name ?? site.system.name} · {u.manufacturer || "Unit"} {u.model}
+                </span>
+                <span className="m">
+                  {[site.system.name, u.location, `#${u.asset_no}`].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+              <span className={`pill ${why === "ending" ? "amber" : "red"}`}>
+                {why === "ending" ? `Ends ${formatDate(end)}` : "Not registered"}
+              </span>
+              <Icon name="chevron" size={18} />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

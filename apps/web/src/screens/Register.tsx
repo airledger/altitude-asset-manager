@@ -3,7 +3,7 @@
 import { formatDate, formatUk, toCsv } from "@airledger/domain";
 import { useState } from "react";
 import type { Business } from "../api";
-import type { Assets, UnitRow } from "../assets";
+import { unitWarrantyEnd, type Assets, type UnitRow } from "../assets";
 import { Icon } from "../icons";
 import type { JobsApi } from "../jobs";
 import { loadOverview, type SiteView } from "../overview";
@@ -43,6 +43,9 @@ export function registerCsvRows(rows: RegisterRow[]): string[][] {
       "Last service",
       "Next service due",
       "Next leak check",
+      "Warranty to",
+      "Warranty registered",
+      "Warranty reference",
     ],
     ...rows.map(({ unit: u, site: s }) => [
       String(u.asset_no),
@@ -64,6 +67,9 @@ export function registerCsvRows(rows: RegisterRow[]): string[][] {
       formatUk(s.info.lastService),
       formatUk(s.info.nextDue),
       formatUk(s.info.nextLeakCheck),
+      formatUk(unitWarrantyEnd(u, s.info.warrantyEnd)),
+      u.warranty_registered ? "Yes" : "No",
+      u.warranty_ref,
     ]),
   ];
 }

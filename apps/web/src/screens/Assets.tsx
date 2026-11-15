@@ -15,6 +15,7 @@ import {
   PREFERRED_CONTACT,
   toDomain,
   toSettings,
+  unitWarrantyEnd,
   type Assets,
   type ClientRow,
   type SystemRow,
@@ -24,6 +25,7 @@ import { Area, Check, Pick, readForm, Text } from "../fields";
 import { labelSheetHtml, openPrintWindow, type PrintBrand } from "../print";
 import { Icon } from "../icons";
 import { Empty, initials, Loading, PageHead } from "../ui";
+import { DocumentsCard } from "./Documents";
 import { SiteRecords } from "./SiteRecords";
 import { SystemJobs } from "./Jobs";
 import { toJob, type JobsApi } from "../jobs";
@@ -298,9 +300,12 @@ export function SystemPage({
   sticker,
   businessName,
   author,
+  owner = false,
 }: {
   assets: Assets;
   jobs: JobsApi;
+  /** Owners can delete documents. */
+  owner?: boolean;
   id: string;
   clientId: string | null;
   /** A scanned sticker to add to this install (#/system/<id>?sticker=AC-XXXXX). */
@@ -519,6 +524,7 @@ export function SystemPage({
           ))}
         </ul>
       </section>
+      <DocumentsCard assets={assets} systemId={s.id} units={units.value ?? []} owner={owner} />
       <SystemJobs jobs={jobs} systemId={s.id} />
       <SiteRecords assets={assets} systemId={s.id} units={units.value ?? []} author={author} />
     </>
@@ -636,13 +642,17 @@ export function UnitPage({
   code,
   businessName,
   author,
+  owner = false,
 }: {
   assets: Assets;
   code: string;
   businessName: string;
   author: string;
+  /** Owners can delete documents. */
+  owner?: boolean;
 }) {
   const unit = useLoad(() => assets.unitByCode(code), [assets, code]);
+  const rules = useLoad(() => assets.ruleSettings(), [assets]);
   const systemId = unit.value?.system_id;
   const system = useLoad(
     () => (systemId ? assets.system(systemId) : Promise.resolve(null)),
@@ -655,6 +665,9 @@ export function UnitPage({
   if (unit.value === undefined) return <Loading />;
   const u = unit.value;
   if (!u) return <RegisterSticker assets={assets} code={code} />;
+  const installEnd = system.value
+    ? systemInfo(toDomain(system.value), [], toSettings(rules.value ?? null), todayIso()).warrantyEnd
+    : null;
   return (
     <>
       <PageHead
@@ -720,6 +733,15 @@ export function UnitPage({
             <Fact k="Filter" v={u.filter_type ?? ""} />
             <Fact k="Controller" v={u.controller ?? ""} />
             <Fact k="Condensate pump" v={u.role === "indoor" ? (u.condensate_pump ? "Yes" : "No") : ""} />
+            <Fact k="Warranty to" v={warrantyText(u, installEnd)} />
+            <Fact
+              k="Registered"
+              v={
+                u.warranty_registered
+                  ? `Yes${u.warranty_ref ? `, reference ${u.warranty_ref}` : ""}`
+                  : "Not yet registered with the manufacturer"
+              }
+            />
             <Fact
               k="Install"
               v={
@@ -730,6 +752,7 @@ export function UnitPage({
           </dl>
         </section>
       )}
+      <DocumentsCard assets={assets} systemId={u.system_id} units={[u]} unitId={u.id} owner={owner} />
       <SiteRecords assets={assets} systemId={u.system_id} units={[u]} unitId={u.id} author={author} />
     </>
   );
@@ -789,6 +812,12 @@ function RegisterSticker({ assets, code }: { assets: Assets; code: string }) {
       </a>
     </section>
   );
+}
+
+function warrantyText(u: UnitRow, installEnd: string | null) {
+  const end = unitWarrantyEnd(u, installEnd);
+  if (!end) return "";
+  return `${formatDate(end)}${u.warranty_end ? "" : " (the install's)"}${end < todayIso() ? ", ended" : ""}`;
 }
 
 function UnitForm(p: {
@@ -854,6 +883,9 @@ function UnitForm(p: {
         controller: f.orNull("controller"),
         condensate_pump: f.bool("condensate_pump"),
         notes: f.text("notes"),
+        warranty_end: f.orNull("warranty_end"),
+        warranty_registered: f.bool("warranty_registered"),
+        warranty_ref: f.text("warranty_ref"),
       });
       if (gas?.offer && sys && f.bool("use_gas"))
         await p.assets.setSystemGas(sys.id, gas.refrigerant, gas.charge);
@@ -995,6 +1027,21 @@ function UnitForm(p: {
           <Check name="condensate_pump" label="Condensate pump" value={u?.condensate_pump} />
         </>
       )}
+      <fieldset className="plain">
+        <legend>Warranty</legend>
+        <Text
+          name="warranty_end"
+          type="date"
+          label="Warranty ends (leave blank to use the install's)"
+          value={u?.warranty_end}
+        />
+        <Check
+          name="warranty_registered"
+          label="Registered with the manufacturer"
+          value={u?.warranty_registered}
+        />
+        <Text name="warranty_ref" label="Registration reference" value={u?.warranty_ref} />
+      </fieldset>
       <Area name="notes" label="Notes" value={u?.notes} />
       <p className="note">
         Not in the list? Type the make and model from the rating plate: it's remembered for next time.

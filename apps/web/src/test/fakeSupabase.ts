@@ -91,6 +91,11 @@ export function fakeSupabase(opts: {
           result(new Blob(["%PDF-1.3"], { type: "application/pdf" }))
         ),
         getPublicUrl: () => ({ data: { publicUrl: "" } }),
+        createSignedUrl: (path: string) => result({ signedUrl: `https://signed/${path}` }),
+        remove: (paths: string[]) => (
+          calls.push({ kind: "from", name: `storage.${bucket}.remove`, args: [paths] }),
+          result([])
+        ),
         createSignedUrls: (paths: string[]) =>
           result(paths.map((path) => ({ path, signedUrl: `https://signed/${path}` }))),
       }),

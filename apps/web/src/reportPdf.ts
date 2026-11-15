@@ -2,7 +2,7 @@
 // the new typed records. Loaded only when a report is issued.
 import { addMonths, formatDate, isInstallType, type SystemInfo } from "@airledger/domain";
 import type { jsPDF as JsPdf } from "jspdf";
-import type { ClientRow, Profile, SystemRow, UnitRow } from "./assets";
+import { unitWarrantyEnd, type ClientRow, type Profile, type SystemRow, type UnitRow } from "./assets";
 import { ALL_CHECKS, CHECKS, INDOOR_ONLY, INSTALL_CHECKS, type JobListRow, type JobRecord } from "./jobs";
 import type { SignoffRow } from "./reports";
 
@@ -349,6 +349,24 @@ export async function reportPdf(r: ReportPdfInput): Promise<Blob> {
       ]),
       [30, 30, 50, 34, 36],
     );
+    // An install's report is the customer's warranty record: when it runs to and whether it's registered.
+    if (inst)
+      kv(
+        r.units.map((u) => {
+          const end = unitWarrantyEnd(u, r.info.warrantyEnd);
+          return [
+            `Warranty #${u.asset_no}`,
+            [
+              end ? `Until ${formatDate(end)}` : "",
+              u.warranty_registered
+                ? `registered with ${u.manufacturer || "the manufacturer"}${u.warranty_ref ? ` (ref ${u.warranty_ref})` : ""}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(", "),
+          ] as [string, string];
+        }),
+      );
 
     heading(inst ? "Installation checks by unit" : "Service checks by unit");
     const list = inst ? INSTALL_CHECKS : CHECKS;

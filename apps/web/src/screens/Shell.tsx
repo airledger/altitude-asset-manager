@@ -152,6 +152,7 @@ export function Shell(props: {
             sticker={r.query.get("sticker")}
             businessName={current.name}
             author={session.user.email ?? ""}
+            owner={current.role === "owner"}
           />
         );
       case "u":
@@ -161,6 +162,7 @@ export function Shell(props: {
             code={r.arg}
             businessName={current.name}
             author={session.user.email ?? ""}
+            owner={current.role === "owner"}
           />
         );
       case "jobs":

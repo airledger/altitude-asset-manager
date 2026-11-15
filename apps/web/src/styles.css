@@ -603,7 +603,16 @@ p {
   text-decoration: none;
   min-height: 60px;
 }
-.rows a.item:hover {
+.rows button.item {
+  width: 100%;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rows a.item:hover,
+.rows button.item:hover {
   background: #f7fafc;
 }
 .rows a.item:active {
@@ -1628,4 +1637,17 @@ ul.plain {
   height: 100%;
   border-radius: 999px;
   background: var(--brand);
+}
+fieldset.plain {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0 0;
+  padding: 12px 0 0;
+  min-width: 0;
+}
+fieldset.plain legend {
+  font-weight: 600;
+  padding: 0 6px 0 0;
 }
