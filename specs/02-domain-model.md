@@ -92,7 +92,7 @@ These rules are implemented in `packages/domain` and checked against the live ap
 
 ### Materials needed for a job
 For each active material:
-- skip if `when = service` and the job type isn't a service type; if `when = leak` and no leak check is due (job is a Leak check, or the next leak check is on or before job date + 31 days); always skip `pick`.
+- skip if `when = service` and the job type isn't a service type; if `when = install` and the job isn't an Installation or Commissioning; if `when = leak` and no leak check is due (job is a Leak check, or the next leak check is on or before job date + 31 days); always skip `pick`.
 - count by `appliesTo`: visit = 1; indoor; outdoor; wall / cassette / ducted / console = indoor units of that type; pump = units with a condensate pump; filter = indoor units with replaceable filters; remote = indoor units with a wireless remote (blank counts as wireless).
 - qty = ceil(count × qtyPer). Skip if count is 0.
 

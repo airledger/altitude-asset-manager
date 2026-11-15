@@ -154,7 +154,7 @@ export interface Material {
   sku?: string;
   appliesTo?: string;
   qtyPer?: Num;
-  when?: "service" | "leak" | "any" | "pick" | string;
+  when?: "service" | "install" | "leak" | "any" | "pick" | string;
   active?: boolean;
   // Prices stored on the material before they moved to the owner-only price list.
   cost?: Num;

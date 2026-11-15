@@ -1,5 +1,6 @@
 // Jobs, the materials catalogue and completion records (stage 5). Rows keep the database's column names;
 // the to*() helpers turn them into the shapes packages/domain's rules read.
+import type { CataloguePart } from "./catalogue";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Job, Material, MaterialLine, Unit } from "@airledger/domain";
 import type { New, UnitRow } from "./assets";
@@ -385,6 +386,15 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
       fail(error);
     },
 
+    /** Common AC parts, to pick from when adding to the materials list or a job. */
+    async partCatalogue(): Promise<CataloguePart[]> {
+      const { data, error } = await sb
+        .from("part_catalogue")
+        .select("name, applies_to, qty_per, needed_when")
+        .order("name");
+      fail(error);
+      return ((data ?? []) as CataloguePart[]).map((x) => ({ ...x, qty_per: Number(x.qty_per) }));
+    },
     /** The business's cylinders, to pick which one gas came from or went into. */
     async cylinders(): Promise<CylinderOption[]> {
       const { data, error } = await sb

@@ -137,6 +137,11 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
         .click();
       await page.getByLabel(type, { exact: true }).check();
       await page.getByLabel("Manufacturer", { exact: true }).fill(maker);
+      // From the catalogue: range, then size, fills in the model and capacity.
+      await page.getByLabel("Range", { exact: true }).selectOption("Perfera");
+      await page.getByLabel("Size", { exact: true }).selectOption({ index: 2 });
+      await expect(page.getByLabel("Model", { exact: true })).toHaveValue(/^(FTXM|RXM)25R$/);
+      await expect(page.getByLabel("Capacity (kW)", { exact: true })).toHaveValue("2.5");
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText(maker).first()).toBeVisible();
     });
@@ -196,6 +201,10 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
       .fill("Serviced both units. All working.");
     await page.getByLabel("Refrigerant added (kg)", { exact: true }).fill("0.4");
     await page.locator("select[name=lc_added_cyl]").selectOption({ index: 1 });
+    // A part that isn't on the materials list.
+    await page.getByLabel("Another part", { exact: true }).fill("Flare nuts");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByLabel("Quantity of Flare nuts")).toBeVisible();
     await page.getByRole("button", { name: /Complete job/ }).click();
     await expect(page.getByRole("heading", { name: "Sign off" })).toBeVisible();
   });

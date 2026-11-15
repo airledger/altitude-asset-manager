@@ -2,7 +2,7 @@
 
 import { addDays, type IsoDate } from "./dates";
 import type { SystemInfo } from "./service";
-import { isServiceType, type Job, type Material, type MaterialLine, type Unit } from "./types";
+import { isInstallType, isServiceType, type Job, type Material, type MaterialLine, type Unit } from "./types";
 
 export const APPLIES_TO = {
   visit: "Per visit",
@@ -19,6 +19,7 @@ export const APPLIES_TO = {
 
 export const NEEDED_WHEN = {
   service: "Services only",
+  install: "Installs only",
   leak: "When leak check due",
   any: "Every job",
   pick: "Only when the engineer adds it",
@@ -71,6 +72,7 @@ export function materialsForJob(
     if (m.active === false) continue;
     const when = m.when || "service";
     if (when === "service" && !service) continue;
+    if (when === "install" && !isInstallType(job.type)) continue;
     if (when === "leak" && !leakDue) continue;
     if (when === "pick") continue;
     const count = countFor(m.appliesTo || "visit", units);

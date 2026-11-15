@@ -1,5 +1,6 @@
 // Clients, installs (systems) and units: the typed tables from stage 2. Rows keep the database's column names;
 // toDomain() turns a system into the shape packages/domain's rules read.
+import type { EquipmentModel } from "./catalogue";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Settings, System } from "@airledger/domain";
 
@@ -252,6 +253,26 @@ export function assets(sb: SupabaseClient, orgId: string) {
     },
 
     saveSystem: (row: New<SystemRow>) => save("systems", row),
+    /** Sets the install's refrigerant and factory charge from a unit picked out of the catalogue. */
+    setSystemGas: (id: string, refrigerant: string, charge: number | null) =>
+      save("systems", { id, refrigerant, ...(charge != null ? { factory_charge_kg: charge } : {}) }),
+
+    /** Air Ledger's equipment list plus the business's own models. */
+    async equipment(): Promise<EquipmentModel[]> {
+      const { data, error } = await sb
+        .from("equipment_models")
+        .select(
+          "id, org_id, manufacturer, range, model, role, indoor_type, capacity_kw, refrigerant, charge_kg",
+        )
+        .order("manufacturer")
+        .range(0, 9999);
+      fail(error);
+      return ((data ?? []) as EquipmentModel[]).map((e) => ({
+        ...e,
+        capacity_kw: e.capacity_kw == null ? null : Number(e.capacity_kw),
+        charge_kg: e.charge_kg == null ? null : Number(e.charge_kg),
+      }));
+    },
 
     async units(systemId: string): Promise<UnitRow[]> {
       const { data, error } = await sb
