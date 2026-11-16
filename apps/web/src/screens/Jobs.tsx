@@ -38,6 +38,7 @@ import {
 } from "../jobs";
 import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { useOutbox } from "./Outbox";
+import { RamsCard } from "./Documents";
 import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
 import type { ReportsApi } from "../reports";
 import type { InvoicesApi } from "../invoices";
@@ -265,6 +266,7 @@ export function JobPage(p: {
   const owner = p.business.role === "owner";
   const { items: outbox } = useOutbox();
   const waiting = outbox.find((i) => i.kind === "complete" && i.jobId === p.id);
+  const me = useLoad(() => p.jobs.me().catch(() => null), [p.jobs]);
   const reportCtx = useMemo<ReportCtx | null>(
     () =>
       job.value && record.value && ctx.value
@@ -490,6 +492,16 @@ export function JobPage(p: {
           )}
         </dl>
       </section>
+      {j.status !== "cancelled" && (
+        <RamsCard
+          assets={p.assets}
+          jobId={j.id}
+          systemId={j.system_id}
+          me={me.value?.name || j.engineer || "Engineer"}
+          userId={p.userId}
+          done={j.status === "completed"}
+        />
+      )}
       {j.status === "completed" && reportCtx && !waiting && (
         <ReportCard assets={p.assets} reports={p.reports} ctx={reportCtx} sentTo={p.query.get("sent")} />
       )}
