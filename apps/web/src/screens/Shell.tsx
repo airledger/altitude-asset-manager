@@ -29,6 +29,8 @@ import { SchedulePage } from "./Schedule";
 import { StickerDesigner } from "./StickerDesigner";
 import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
+import { TimesheetsPage } from "./Timesheets";
+import { timesApi } from "../timesheets";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
@@ -58,7 +60,7 @@ export function readHash(hash = window.location.hash): Route {
 const tabOf = (page: string): Tab =>
   ["client", "system", "register"].includes(page)
     ? "clients"
-    : ["job", "schedule", "orders", "reports", "refrigerant"].includes(page)
+    : ["job", "schedule", "orders", "reports", "refrigerant", "timesheets"].includes(page)
       ? "jobs"
       : page === "u" || page === "stickers"
         ? "labels"
@@ -93,6 +95,7 @@ export function Shell(props: {
   const portal = useMemo(() => portalApi(api.client), [api]);
   const payments = useMemo(() => paymentsApi(api.client, current.id), [api, current.id]);
   const refrigerant = useMemo(() => refrigerantApi(api.client, current.id), [api, current.id]);
+  const times = useMemo(() => timesApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -166,7 +169,16 @@ export function Shell(props: {
           />
         );
       case "jobs":
-        return <JobsPage jobs={jobs} show={r.query.get("show")} />;
+        return <JobsPage jobs={jobs} show={r.query.get("show")} owner={owner} />;
+      case "timesheets":
+        return owner ? (
+          <TimesheetsPage times={times} week={r.query.get("week")} />
+        ) : (
+          <section className="card">
+            <h1>Owners only</h1>
+            <p>Timesheets are only shown to the business's owners.</p>
+          </section>
+        );
       case "job":
         return (
           <JobPage
@@ -177,6 +189,7 @@ export function Shell(props: {
             business={current}
             userId={session.user.id}
             reports={reports}
+            times={times}
             invoices={owner ? invoices : null}
           />
         );

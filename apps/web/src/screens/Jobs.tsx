@@ -39,6 +39,8 @@ import {
 import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { useOutbox } from "./Outbox";
 import { RamsCard } from "./Documents";
+import { TimesCard } from "./Timesheets";
+import type { TimesApi } from "../timesheets";
 import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
 import type { ReportsApi } from "../reports";
 import type { InvoicesApi } from "../invoices";
@@ -104,7 +106,16 @@ export function JobRows({ jobs, empty }: { jobs: JobListRow[]; empty: ReactNode 
 
 // ---------- list ----------
 
-export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null }) {
+export function JobsPage({
+  jobs,
+  show,
+  owner = false,
+}: {
+  jobs: JobsApi;
+  show: string | null;
+  /** Owners get the timesheets. */
+  owner?: boolean;
+}) {
   const list = useLoad(() => jobs.jobs(), [jobs]);
   const filter: Filter = show && show in FILTERS ? (show as Filter) : "booked";
   const [q, setQ] = useState("");
@@ -137,6 +148,11 @@ export function JobsPage({ jobs, show }: { jobs: JobsApi; show: string | null })
         <a className="btn" href="#/refrigerant">
           Refrigerant
         </a>
+        {owner && (
+          <a className="btn" href="#/timesheets">
+            Timesheets
+          </a>
+        )}
         <a className="btn" href="#/reports">
           <Icon name="report" size={18} />
           Reports
@@ -253,6 +269,8 @@ export function JobPage(p: {
   business: Business;
   userId: string;
   reports: ReportsApi;
+  /** Set off, arrived and finished times. */
+  times?: TimesApi;
   /** Owners only. */
   invoices?: InvoicesApi | null;
 }) {
@@ -492,6 +510,18 @@ export function JobPage(p: {
           )}
         </dl>
       </section>
+      {p.times && j.status !== "cancelled" && (
+        <TimesCard
+          times={p.times}
+          orgId={p.business.id}
+          jobId={j.id}
+          userId={p.userId}
+          me={me.value?.name || j.engineer || "Engineer"}
+          owner={owner}
+          label={`${j.type} · ${s?.clients?.name ?? s?.name ?? ""}`}
+          open={j.status === "booked"}
+        />
+      )}
       {j.status !== "cancelled" && (
         <RamsCard
           assets={p.assets}

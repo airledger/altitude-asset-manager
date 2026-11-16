@@ -1,5 +1,5 @@
-// Working with no signal, part 2: writing. Completing a job, logging a contact and adding a site note
-// (with photos) are saved on the device when there's no connection, then sent in order once it's back.
+// Working with no signal, part 2: writing. Completing a job, logging a contact, adding a site note
+// (with photos) and timesheet taps are saved on the device when there's no connection, then sent in order once it's back.
 // Photos are uploaded first and the records that use them are updated with the real file ids.
 //
 // Something the server turns down (say the office cancelled the job while you were offline) stays in
@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assets, type ContactLogRow, type New, type SiteRecordRow } from "./assets";
 import { jobsApi, type Completion } from "./jobs";
 import { isNetworkError } from "./offline";
+import { timesApi, type Stage } from "./timesheets";
 
 export type OutboxItem = {
   id: string;
@@ -21,6 +22,7 @@ export type OutboxItem = {
   | { kind: "complete"; jobId: string; completion: Completion }
   | { kind: "contact"; row: Omit<ContactLogRow, "id"> }
   | { kind: "siteRecord"; row: New<SiteRecordRow> }
+  | { kind: "time"; jobId: string; stage: Stage; at: string; name: string }
 );
 
 export type NewItem = OutboxItem extends infer T
@@ -197,6 +199,8 @@ async function send(sb: SupabaseClient, item: OutboxItem) {
       await assets(sb, item.orgId).saveSiteRecord(row);
       return;
     }
+    case "time":
+      return timesApi(sb, item.orgId).clock(item.jobId, item.stage, item.at, item.name);
   }
 }
 
