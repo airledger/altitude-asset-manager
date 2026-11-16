@@ -208,6 +208,22 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await expect(card.getByText(/Signed by /)).toBeVisible();
   });
 
+  await step("Record set off, arrived and finished times, and see them on the timesheet", async () => {
+    await open(page, `#/job/${jobId}`);
+    const card = page.getByRole("region", { name: "Time on this job" });
+    for (const [tap, next] of [
+      ["Set off", "Arrived on site"],
+      ["Arrived on site", "Finished"],
+    ] as const) {
+      await card.getByRole("button", { name: tap, exact: true }).click();
+      await expect(card.getByRole("button", { name: next, exact: true })).toBeVisible();
+    }
+    await card.getByRole("button", { name: "Finished", exact: true }).click();
+    await expect(card.getByText(/Your time on this job is recorded/)).toBeVisible();
+    await open(page, "#/timesheets");
+    await expect(page.getByText(/1 job · travel/)).toBeVisible();
+  });
+
   await step("Complete the job, topping up from the cylinder", async () => {
     await open(page, `#/job/${jobId}?do=complete`);
     await page

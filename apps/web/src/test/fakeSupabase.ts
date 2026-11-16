@@ -26,6 +26,7 @@ export function fakeSupabase(opts: {
       "gt",
       "gte",
       "lte",
+      "lt",
       "neq",
       "order",
       "delete",

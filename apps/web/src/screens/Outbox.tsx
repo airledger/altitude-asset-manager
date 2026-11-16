@@ -70,7 +70,9 @@ export function OutboxBar({ client }: { client: SupabaseClient }) {
                       ? "Job completed"
                       : i.kind === "contact"
                         ? "Contact logged"
-                        : "Site record"}
+                        : i.kind === "time"
+                          ? { travel: "Set off", arrived: "Arrived", left: "Finished" }[i.stage]
+                          : "Site record"}
                 </b>{" "}
                 · {i.label} ·{" "}
                 {new Date(i.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
