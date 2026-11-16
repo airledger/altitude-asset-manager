@@ -18,6 +18,8 @@ export interface ReportPdfInput {
   signoff: Omit<SignoffRow, "job_id" | "engineer_signature_file_id" | "customer_signature_file_id">;
   images: { logo: Blob | null; engineerSig: Blob | null; customerSig: Blob | null; photos: Blob[] };
   meta: { ref: string; rev: number; issuedAt: string; hash: string };
+  /** Risk assessments for the job and who signed them on site. */
+  rams?: { name: string; signed: { name: string; signed_at: string }[] }[];
 }
 
 type Rgb = [number, number, number];
@@ -497,6 +499,26 @@ export async function reportPdf(r: ReportPdfInput): Promise<Blob> {
     });
     if (col === 1) y += rowH;
     y += 2;
+  }
+
+  // ---------- risk assessments ----------
+  if (r.rams?.length) {
+    heading("Risk assessments");
+    kv(
+      r.rams.map((x) => [
+        x.name,
+        x.signed.length
+          ? x.signed
+              .map(
+                (s) =>
+                  `Read and signed by ${s.name}, ${formatDate(s.signed_at.slice(0, 10))} ${new Date(s.signed_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
+              )
+              .join("; ")
+          : "Not signed",
+        !x.signed.length,
+      ]),
+      70,
+    );
   }
 
   // ---------- next service ----------

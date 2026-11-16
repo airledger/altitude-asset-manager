@@ -172,7 +172,7 @@ async function buildAndIssue(a: {
   const hash = await fingerprint(snapshot({ ...ctx, client: a.client }));
   const { ref, rev } = nextRef(ctx.job, a.previous, todayIso());
   const info = systemInfo(toDomain(ctx.system), ctx.history.map(toJob), ctx.settings, todayIso());
-  const [profile, logo, engineerSig, customerSig, photos] = await Promise.all([
+  const [profile, logo, engineerSig, customerSig, photos, rams] = await Promise.all([
     a.assets.profile(),
     a.business.logoUrl
       ? fetch(a.business.logoUrl)
@@ -184,6 +184,7 @@ async function buildAndIssue(a: {
       ? a.reports.fileBlob(a.signoff.customer_signature_file_id)
       : Promise.resolve(null),
     Promise.all((ctx.record.report?.photo_file_ids ?? []).map((id) => a.reports.fileBlob(id))),
+    a.assets.jobRams(ctx.job.id, ctx.system.id).catch(() => []),
   ]);
   const { reportPdf } = await import("../reportPdf");
   const pdf = await reportPdf({
@@ -198,6 +199,7 @@ async function buildAndIssue(a: {
     signoff: a.signoff,
     images: { logo, engineerSig, customerSig, photos: photos.filter((b): b is Blob => !!b) },
     meta: { ref, rev, issuedAt: new Date().toISOString(), hash },
+    rams: rams.map((x) => ({ name: x.doc.name, signed: x.signed })),
   });
   return a.reports.issue({ jobId: ctx.job.id, ref, rev, hash, pdf });
 }

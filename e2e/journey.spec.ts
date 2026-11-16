@@ -194,6 +194,20 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await expect(page.getByText(/9 of 9 kg left/)).toBeVisible();
   });
 
+  await step("Add a risk assessment for the job and sign it on site", async () => {
+    await open(page, `#/job/${jobId}`);
+    const card = page.getByRole("region", { name: "Risk assessments" });
+    await card.getByLabel("Add a risk assessment for this job", { exact: true }).setInputFiles({
+      name: "E2E RAMS.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%%EOF\n"),
+    });
+    await expect(card.getByText("E2E RAMS.pdf")).toBeVisible({ timeout: 30_000 });
+    page.once("dialog", (d) => void d.accept());
+    await card.getByRole("button", { name: "Sign E2E RAMS.pdf" }).click();
+    await expect(card.getByText(/Signed by /)).toBeVisible();
+  });
+
   await step("Complete the job, topping up from the cylinder", async () => {
     await open(page, `#/job/${jobId}?do=complete`);
     await page

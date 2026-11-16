@@ -101,10 +101,33 @@ export interface DocumentRow {
   id: string;
   system_id: string;
   unit_id: string | null;
+  /** A risk assessment for one job only (others are for every job at the install). */
+  job_id?: string | null;
   kind: "warranty" | "rams" | "other";
   name: string;
   file_id: string;
   created_at: string;
+}
+
+export const DOCUMENT_KINDS = {
+  warranty: "Warranty",
+  rams: "Risk assessment (RAMS)",
+  other: "Other",
+} as const;
+
+/** Someone saying they've read a risk assessment before starting a job. */
+export interface RamsSignoff {
+  document_id: string;
+  job_id: string;
+  user_id: string;
+  name: string;
+  signed_at: string;
+}
+
+/** A job's risk assessments (the install's and the job's own), each with who has signed it for this job. */
+export interface JobRams {
+  doc: DocumentRow;
+  signed: RamsSignoff[];
 }
 
 /** A unit's warranty end: its own, or else the install's. */
@@ -428,7 +451,7 @@ export function assets(sb: SupabaseClient, orgId: string) {
     async documents(systemId: string): Promise<DocumentRow[]> {
       const { data, error } = await sb
         .from("documents")
-        .select("id, system_id, unit_id, kind, name, file_id, created_at")
+        .select("id, system_id, unit_id, job_id, kind, name, file_id, created_at")
         .eq("system_id", systemId)
         .order("created_at", { ascending: false });
       fail(error);
@@ -441,6 +464,7 @@ export function assets(sb: SupabaseClient, orgId: string) {
       unitId: string | null,
       file: File,
       kind: DocumentRow["kind"] = "warranty",
+      jobId: string | null = null,
     ): Promise<void> {
       if (file.size > 20 * 1024 * 1024) throw new Error("That file is over 20 MB. Try a smaller scan.");
       const path = `${orgId}/docs/${crypto.randomUUID()}-${safeName(file.name)}`;
@@ -465,10 +489,43 @@ export function assets(sb: SupabaseClient, orgId: string) {
         org_id: orgId,
         system_id: systemId,
         unit_id: unitId,
+        job_id: jobId,
         kind,
         name: file.name.trim() || "Document",
         file_id: (f.data as { id: string }).id,
       });
+      fail(error);
+    },
+
+    async jobRams(jobId: string, systemId: string): Promise<JobRams[]> {
+      const [docs, signed] = await Promise.all([
+        sb
+          .from("documents")
+          .select("id, system_id, unit_id, job_id, kind, name, file_id, created_at")
+          .eq("system_id", systemId)
+          .eq("kind", "rams")
+          .or(`job_id.is.null,job_id.eq.${jobId}`)
+          .order("created_at"),
+        sb
+          .from("document_signoffs")
+          .select("document_id, job_id, user_id, name, signed_at")
+          .eq("job_id", jobId)
+          .order("signed_at"),
+      ]);
+      fail(docs.error);
+      fail(signed.error);
+      const all = (signed.data ?? []) as RamsSignoff[];
+      return ((docs.data ?? []) as DocumentRow[]).map((doc) => ({
+        doc,
+        signed: all.filter((x) => x.document_id === doc.id),
+      }));
+    },
+
+    /** Signs a risk assessment for a job, as the signed-in person. */
+    async signRams(documentId: string, jobId: string, name: string): Promise<void> {
+      const { error } = await sb
+        .from("document_signoffs")
+        .insert({ org_id: orgId, document_id: documentId, job_id: jobId, name });
       fail(error);
     },
 
