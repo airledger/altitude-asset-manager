@@ -217,6 +217,16 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Text the customer “On my way” from the job", async () => {
     await open(page, `#/job/${jobId}`);
+    const heading = page.getByRole("heading", { name: "Text the customer" });
+    if (
+      !(await heading.waitFor({ timeout: 20_000 }).then(
+        () => true,
+        () => false,
+      ))
+    )
+      console.log(
+        `No text card. The job page shows:\n${(await page.locator("main").innerText()).slice(0, 1500)}`,
+      );
     await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/^Hi Pat, it's .* on my way/);
     await page.getByRole("button", { name: /Send “On my way”/ }).click();
     // Until the business's text account is set up the server says so; after that, the drama number is refused.
