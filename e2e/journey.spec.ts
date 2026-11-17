@@ -91,6 +91,19 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await expect(page.getByText("Saved").first()).toBeVisible();
   });
 
+  await step("Turn on Google review requests and set the name texts come from", async () => {
+    const reports = page.getByRole("form", { name: "Service reports" });
+    await reports
+      .getByLabel("Your Google review link (from your Business Profile: Ask for reviews)", { exact: true })
+      .fill("https://g.page/r/e2e-test/review");
+    await reports.getByRole("button", { name: "Save" }).click();
+    await expect(reports.getByText("Saved.")).toBeVisible();
+    const texts = page.locator("form", { has: page.getByRole("heading", { name: "Text messages" }) });
+    await texts.getByLabel("Texts come from", { exact: true }).fill("E2E Test");
+    await texts.getByRole("button", { name: "Save" }).click();
+    await expect(texts.getByText("Saved.")).toBeVisible();
+  });
+
   await step("Add an engineer, which makes an invite link", async () => {
     await open(page, "#/team");
     const form = page.getByRole("form", { name: "Add an engineer" });
@@ -107,6 +120,8 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     await page.getByLabel("Client or company name", { exact: true }).fill("Harbour Dental (test)");
     await page.getByLabel("Contact name", { exact: true }).fill("Pat");
     await page.getByLabel("Email", { exact: true }).fill(INBOX);
+    // A drama number (Ofcom's range for fiction), so a real person is never texted.
+    await page.getByLabel("Phone", { exact: true }).fill("07700 900123");
     await page.getByLabel("Postcode", { exact: true }).fill("BH15 1AA");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page).toHaveURL(/#\/client\/[0-9a-f-]{36}/);
@@ -184,6 +199,32 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     expect(ics).toContain("Harbour Dental (test)");
   });
 
+  await step("Connect an engineer's own calendar: a dead address is reported", async () => {
+    await page
+      .getByLabel("Your calendar's private address", { exact: true })
+      .fill("https://calendar.google.com/calendar/ical/e2e-test%40airledger.co.uk/private-0000/basic.ics");
+    await page.getByRole("button", { name: "Connect my calendar" }).click();
+    await expect(page.getByText(/Google Calendar/).first()).toBeVisible({ timeout: 30_000 });
+    // The calendar-sync server function really fetched it, and Google had no such calendar.
+    const card = page.locator("section", {
+      has: page.getByRole("heading", { name: "Your calendar on the schedule" }),
+    });
+    await expect(card.locator(".banner")).toBeVisible();
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Disconnect" }).click();
+    await expect(page.getByRole("button", { name: "Connect my calendar" })).toBeVisible();
+  });
+
+  await step("Text the customer “On my way” from the job", async () => {
+    await open(page, `#/job/${jobId}`);
+    await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/^Hi Pat, it's .* on my way/);
+    await page.getByRole("button", { name: /Send “On my way”/ }).click();
+    // Until the business's text account is set up the server says so; after that, the drama number is refused.
+    await expect(page.getByText(/aren't set up yet|Sent to|didn't take/).first()).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
   await step("Add a refrigerant cylinder", async () => {
     await open(page, "#/refrigerant");
     await page.getByRole("button", { name: "Add a cylinder" }).click();
@@ -250,6 +291,7 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
   await step("Email the report to the customer", async () => {
     await page.getByRole("button", { name: "Email it" }).click();
     await expect(page.getByText(/Emailed to/).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/also been asked for a Google review/).first()).toBeVisible();
   });
 
   await step("Download the report PDF from Reports", async () => {
