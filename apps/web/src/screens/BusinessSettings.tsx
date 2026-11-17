@@ -1,4 +1,6 @@
 import type { ReportsApi } from "../reports";
+import type { SmsApi } from "../sms";
+import { TextSettingsForm } from "./Texts";
 import { ReportSettingsForm } from "./Reports";
 import { useMemo, useState, type FormEvent } from "react";
 import { portalApi } from "../portal";
@@ -48,12 +50,14 @@ export function BusinessSettings({
   api,
   assets,
   reports,
+  sms,
   business,
   saved,
 }: {
   api: Api;
   assets: Assets;
   reports: ReportsApi;
+  sms?: SmsApi;
   business: Business;
   saved: () => void;
 }) {
@@ -129,6 +133,7 @@ export function BusinessSettings({
       </form>
       <ProfileForm assets={assets} />
       {business.role === "owner" && <ReportSettingsForm reports={reports} />}
+      {sms && <TextSettingsForm sms={sms} business={business.name} />}
       <PortalSettingsForm portal={portal} orgId={business.id} />
       <DeleteBusiness api={api} business={business} done={saved} />
     </>

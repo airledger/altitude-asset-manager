@@ -40,6 +40,8 @@ import { enqueue, enqueuePhotos, sendOrSave } from "../outbox";
 import { useOutbox } from "./Outbox";
 import { RamsCard } from "./Documents";
 import { TimesCard } from "./Timesheets";
+import { OnMyWayCard } from "./Texts";
+import type { SmsApi } from "../sms";
 import type { TimesApi } from "../timesheets";
 import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
 import type { ReportsApi } from "../reports";
@@ -271,6 +273,8 @@ export function JobPage(p: {
   reports: ReportsApi;
   /** Set off, arrived and finished times. */
   times?: TimesApi;
+  /** Text messages to the customer. */
+  sms?: SmsApi;
   /** Owners only. */
   invoices?: InvoicesApi | null;
 }) {
@@ -520,6 +524,18 @@ export function JobPage(p: {
           owner={owner}
           label={`${j.type} · ${s?.clients?.name ?? s?.name ?? ""}`}
           open={j.status === "booked"}
+        />
+      )}
+      {p.sms && j.status === "booked" && s?.clients?.phone && (
+        <OnMyWayCard
+          sms={p.sms}
+          phone={s.clients.phone}
+          contact={s.clients.contact_name || s.clients.name}
+          engineer={me.value?.name || j.engineer || "your engineer"}
+          business={p.business.name}
+          jobId={j.id}
+          systemId={j.system_id}
+          clientId={s.client_id || null}
         />
       )}
       {j.status !== "cancelled" && (
