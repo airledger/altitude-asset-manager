@@ -297,7 +297,7 @@ export function SignOff(p: {
         try {
           const { path } = await p.reports.pdf(report);
           const d = draft(p.business.name, ctx, client, report, row.engineer_name);
-          await p.reports.email({
+          const sent = await p.reports.email({
             report,
             pdfPath: path,
             filename: reportFileName(report, client?.name ?? ""),
@@ -307,7 +307,7 @@ export function SignOff(p: {
             message: d.message,
             replyTo: settings.email,
           });
-          go(`#/job/${j.id}?sent=${encodeURIComponent(to)}`);
+          go(`#/job/${j.id}?sent=${encodeURIComponent(to)}${sent.reviewAsked ? "&review=1" : ""}`);
           return;
         } catch {
           // Fall through to the send screen, which shows the reason if it fails again.
@@ -447,7 +447,7 @@ export function SendReport(p: {
       const cc = emails(f.text("cc"));
       if (!to.length) throw new Error("Who should it go to?");
       const { path } = await getPdf();
-      await p.reports.email({
+      const sent = await p.reports.email({
         report,
         pdfPath: path,
         filename: file,
@@ -457,7 +457,9 @@ export function SendReport(p: {
         message: f.text("message"),
         replyTo: settings.email,
       });
-      setDone(`Emailed to ${[...to, ...cc].join(" and ")}.`);
+      setDone(
+        `Emailed to ${[...to, ...cc].join(" and ")}.${sent.reviewAsked ? " They've also been asked for a Google review." : ""}`,
+      );
       data.reload();
     });
   }
@@ -585,6 +587,8 @@ export function ReportCard(p: {
   reports: ReportsApi;
   ctx: ReportCtx;
   sentTo?: string | null;
+  /** The customer was also asked for a Google review. */
+  reviewAsked?: boolean;
 }) {
   const j = p.ctx.job;
   const data = useLoad(async () => {
@@ -628,7 +632,11 @@ export function ReportCard(p: {
           {r.rev > 1 && ` rev ${r.rev}`}
         </span>
       </div>
-      {p.sentTo && <p className="banner ok">Emailed to {p.sentTo}.</p>}
+      {p.sentTo && (
+        <p className="banner ok">
+          Emailed to {p.sentTo}.{p.reviewAsked && " They've also been asked for a Google review."}
+        </p>
+      )}
       {edited && (
         <p className="banner">
           The job has been edited since this report was made. Re-issue it so the customer has the right
@@ -785,6 +793,9 @@ export function ReportSettingsForm({ reports }: { reports: ReportsApi }) {
       await reports.saveSettings({
         report_email: f.text("report_email").toLowerCase(),
         auto_email_reports: f.bool("auto_email_reports"),
+        review_link: f.text("review_link"),
+        review_requests: f.bool("review_requests"),
+        review_gap_months: Math.min(36, Math.max(1, Math.round(f.num("review_gap_months") ?? 6))),
       });
       setSaved(true);
     });
@@ -804,6 +815,28 @@ export function ReportSettingsForm({ reports }: { reports: ReportsApi }) {
         label="Email the report to the customer as soon as the job is signed off"
         value={s.value.auto_email_reports}
       />
+      <h3>Google reviews</h3>
+      <Text
+        name="review_link"
+        label="Your Google review link (from your Business Profile: Ask for reviews)"
+        type="url"
+        value={s.value.review_link}
+      />
+      <Check
+        name="review_requests"
+        label="When a report is emailed, also ask the customer for a Google review"
+        value={s.value.review_requests}
+      />
+      <Text
+        name="review_gap_months"
+        label="Ask the same customer at most once every (months)"
+        type="number"
+        value={s.value.review_gap_months}
+      />
+      <p className="note">
+        Customers who've said no to reminders are never asked. The request is a short thank-you email with
+        your link, sent just after the report.
+      </p>
       <div className="row">
         <button className="btn pri" type="submit" disabled={busy}>
           Save

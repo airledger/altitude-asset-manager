@@ -53,6 +53,11 @@ export interface ReportSettings {
   auto_email_reports: boolean;
   /** Replies go to the business. */
   email: string;
+  /** The business's Google review link; blank means no review requests. */
+  review_link: string;
+  review_requests: boolean;
+  /** A customer is asked at most once in this many months. */
+  review_gap_months: number;
 }
 
 const fail = (error: { message: string } | null): void => {
@@ -221,8 +226,8 @@ export function reportsApi(sb: SupabaseClient, orgId: string) {
       subject: string;
       message: string;
       replyTo: string;
-    }): Promise<void> {
-      const { error } = await sb.functions.invoke("send-report", {
+    }): Promise<{ reviewAsked: boolean }> {
+      const { data, error } = await sb.functions.invoke("send-report", {
         body: {
           orgId,
           pdf: m.pdfPath,
@@ -232,6 +237,8 @@ export function reportsApi(sb: SupabaseClient, orgId: string) {
           subject: m.subject,
           message: m.message,
           replyTo: m.replyTo,
+          // The function asks the customer for a review if this job's customer is due one.
+          jobId: m.report.job_id,
         },
       });
       if (error) {
@@ -241,12 +248,13 @@ export function reportsApi(sb: SupabaseClient, orgId: string) {
         throw new Error((body as { error?: string } | null)?.error || error.message);
       }
       await this.logSend(m.report.id, "email", [...m.to, ...m.cc]);
+      return { reviewAsked: !!(data as { reviewAsked?: boolean } | null)?.reviewAsked };
     },
 
     async settings(): Promise<ReportSettings> {
       const { data, error } = await sb
         .from("org_settings")
-        .select("report_email, auto_email_reports, email")
+        .select("report_email, auto_email_reports, email, review_link, review_requests, review_gap_months")
         .eq("org_id", orgId)
         .maybeSingle();
       fail(error);
@@ -255,11 +263,14 @@ export function reportsApi(sb: SupabaseClient, orgId: string) {
         report_email: r.report_email ?? "",
         auto_email_reports: !!r.auto_email_reports,
         email: r.email ?? "",
+        review_link: r.review_link ?? "",
+        review_requests: r.review_requests ?? true,
+        review_gap_months: r.review_gap_months ?? 6,
       };
     },
 
     /** Owner only (the database refuses anyone else). */
-    async saveSettings(s: Pick<ReportSettings, "report_email" | "auto_email_reports">): Promise<void> {
+    async saveSettings(s: Partial<Omit<ReportSettings, "email">>): Promise<void> {
       const { data, error } = await sb.from("org_settings").update(s).eq("org_id", orgId).select("org_id");
       fail(error);
       if (Array.isArray(data) && data.length === 0) throw new Error("Only an owner can change this.");

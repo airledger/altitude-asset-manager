@@ -533,7 +533,13 @@ export function JobPage(p: {
         />
       )}
       {j.status === "completed" && reportCtx && !waiting && (
-        <ReportCard assets={p.assets} reports={p.reports} ctx={reportCtx} sentTo={p.query.get("sent")} />
+        <ReportCard
+          assets={p.assets}
+          reports={p.reports}
+          ctx={reportCtx}
+          sentTo={p.query.get("sent")}
+          reviewAsked={p.query.has("review")}
+        />
       )}
       {p.invoices && j.status !== "cancelled" && (
         <JobBillingCard invoices={p.invoices} jobs={p.jobs} job={j} />

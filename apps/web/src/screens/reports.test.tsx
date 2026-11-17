@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 import { reportPdf } from "../reportPdf";
@@ -91,12 +91,16 @@ const report = (hash: string): ReportRow => ({
   report_sends: [{ id: "x1", via: "email", sent_to: "pat@harbour.test", sent_at: "2026-11-03T10:01:00Z" }],
 });
 
-function app(tables: Record<string, unknown[]> = {}, opts: { rpcErrors?: Record<string, string> } = {}) {
+function app(
+  tables: Record<string, unknown[]> = {},
+  opts: { rpcErrors?: Record<string, string>; rpc?: Record<string, unknown>; role?: string } = {},
+) {
   const fake = fakeSupabase({
     signedInAs: ed,
     rpcErrors: opts.rpcErrors ?? {},
+    rpc: opts.rpc ?? {},
     tables: {
-      members: [member],
+      members: [opts.role ? { ...member, role: opts.role } : member],
       org_settings: [{ default_interval_months: 12, report_email: "office@a.test", email: "hello@a.test" }],
       people: [
         {
@@ -314,11 +318,46 @@ describe("service reports", () => {
       to: ["pat@harbour.test"],
       cc: ["office@a.test"],
       replyTo: "hello@a.test",
+      jobId: "j1",
     });
     expect((calls.find((c) => c.name === "report_sends.insert")?.args as unknown[])[0]).toMatchObject({
       report_id: "r1",
       via: "email",
       sent_to: "pat@harbour.test, office@a.test",
+    });
+  });
+
+  it("says when the customer was also asked for a Google review", async () => {
+    window.location.hash = "#/job/j1?do=send";
+    app(
+      {
+        service_reports: [report("h")],
+        job_signoffs: [{ job_id: "j1", engineer_name: "Ed Jones", client_email: "pat@harbour.test" }],
+      },
+      { rpc: { "fn.send-report": { id: "e1", reviewAsked: true } } },
+    );
+    await screen.findByLabelText("To");
+    fireEvent.click(screen.getByRole("button", { name: "Email it" }));
+    expect(await screen.findByText(/They've also been asked for a Google review/)).toBeTruthy();
+  });
+
+  it("owners set their Google review link and how often to ask", async () => {
+    window.location.hash = "#/business";
+    const calls = app({}, { role: "owner" });
+    fireEvent.change(await screen.findByLabelText(/Your Google review link/), {
+      target: { value: "https://g.page/r/abc/review" },
+    });
+    fireEvent.change(screen.getByLabelText("Ask the same customer at most once every (months)"), {
+      target: { value: "12" },
+    });
+    fireEvent.click(
+      within(screen.getByRole("form", { name: "Service reports" })).getByRole("button", { name: "Save" }),
+    );
+    await waitFor(() => expect(calls.some((c) => c.name === "org_settings.update")).toBe(true));
+    expect((calls.find((c) => c.name === "org_settings.update")?.args as unknown[])[0]).toMatchObject({
+      review_link: "https://g.page/r/abc/review",
+      review_requests: true,
+      review_gap_months: 12,
     });
   });
 
