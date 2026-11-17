@@ -15,6 +15,17 @@ const json = (body: unknown, status = 200) =>
 const EMAIL = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/;
 const clean = (s: unknown, max: number) => String(s ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, max);
 
+/** The short thank-you asking for a Google review. */
+function reviewMessage(contact: string, business: string, link: string): string {
+  return (
+    `Hi ${contact || "there"},\n\n` +
+    `Thank you for choosing ${business}. We hope you're happy with the work.\n\n` +
+    `If you have a minute, a quick Google review would really help us:\n${link}\n\n` +
+    `If anything isn't right, just reply to this email and we'll sort it out.\n\n` +
+    `Thanks,\n${business}`
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -58,5 +69,29 @@ Deno.serve(async (req) => {
   });
   const out = await res.json().catch(() => ({}));
   if (!res.ok) return json({ error: (out as { message?: string }).message || "Email service error" }, 502);
-  return json({ id: (out as { id?: string }).id, sentBy: user.email });
+
+  // A signed-off job's report: the customer may also get a short Google review request (the database decides,
+  // so each customer is asked at most once in the business's chosen months).
+  let reviewAsked = false;
+  const jobId = clean(b.jobId, 64);
+  if (jobId) {
+    const { data: ask } = await sb.rpc("claim_review_request", { p_job: jobId, p_email: to[0] });
+    const r = (ask as { link: string; business: string; contact: string }[] | null)?.[0];
+    if (r?.link) {
+      const business = clean(r.business, 80).replace(/[<>"]/g, "");
+      const sent = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: `${business} <${from}>`,
+          to: [to[0]],
+          reply_to: EMAIL.test(replyTo) ? replyTo : undefined,
+          subject: `Thank you from ${business}`,
+          text: reviewMessage(clean(r.contact, 80), business, r.link),
+        }),
+      }).catch(() => null);
+      reviewAsked = !!sent?.ok;
+    }
+  }
+  return json({ id: (out as { id?: string }).id, sentBy: user.email, reviewAsked });
 });
