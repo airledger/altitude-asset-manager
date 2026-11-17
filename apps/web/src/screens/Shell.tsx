@@ -32,6 +32,7 @@ import { Team } from "./Team";
 import { TimesheetsPage } from "./Timesheets";
 import { timesApi } from "../timesheets";
 import { smsApi } from "../sms";
+import { diaryApi } from "../diary";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
@@ -98,6 +99,7 @@ export function Shell(props: {
   const refrigerant = useMemo(() => refrigerantApi(api.client, current.id), [api, current.id]);
   const times = useMemo(() => timesApi(api.client, current.id), [api, current.id]);
   const sms = useMemo(() => smsApi(api.client, current.id), [api, current.id]);
+  const diary = useMemo(() => diaryApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -224,7 +226,7 @@ export function Shell(props: {
       case "register":
         return <RegisterPage assets={assets} jobs={jobs} business={current} />;
       case "schedule":
-        return <SchedulePage jobs={jobs} business={current} query={r.query} />;
+        return <SchedulePage jobs={jobs} business={current} query={r.query} diary={diary} />;
       case "materials":
         return <MaterialsPage jobs={jobs} business={current} />;
       case "account":
