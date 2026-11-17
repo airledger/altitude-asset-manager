@@ -58,3 +58,4 @@ jobs:
           supabase functions deploy accounts --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy portal-notify --project-ref "$SUPABASE_PROJECT_REF" --use-api
           supabase functions deploy payments --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy send-sms --project-ref "$SUPABASE_PROJECT_REF" --use-api

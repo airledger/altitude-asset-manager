@@ -185,6 +185,25 @@ describe("reminders", () => {
     });
   });
 
+  it("sends the reminder as a text and logs it", async () => {
+    window.location.hash = "#/reminders?open=s1";
+    const calls = app();
+    fireEvent.click(await screen.findByRole("button", { name: "Send text" }));
+    await waitFor(() => expect(calls.some((c) => c.name === "contact_logs.insert")).toBe(true));
+    const sent = calls.find((c) => c.name === "fn.send-sms")?.args as { body: Record<string, string> };
+    expect(sent.body).toMatchObject({
+      orgId: "org-a",
+      to: "07700900123",
+      kind: "service_due",
+      systemId: "s1",
+    });
+    expect(sent.body.message).toMatch(/^Hi Priya/);
+    expect((calls.find((c) => c.name === "contact_logs.insert")?.args as unknown[])[0]).toMatchObject({
+      method: "Text message",
+      note: "Sent from Air Ledger",
+    });
+  });
+
   it("shows an install as contacted once it's logged", async () => {
     window.location.hash = "#/reminders?show=contacted";
     app({ contact_logs: [{ id: "l1", system_id: "s1", date: today, method: "Phone call", note: "" }] });

@@ -63,7 +63,7 @@ export type JobListRow = JobRow & {
     site_postcode: string;
     access_notes: string;
     client_id: string;
-    clients: { name: string } | null;
+    clients: { name: string; contact_name?: string; phone?: string } | null;
   } | null;
   job_leak_checks: { performed: boolean } | { performed: boolean }[] | null;
 };
@@ -238,7 +238,7 @@ export const toPart = (l: MaterialLine): PartRow => ({
 });
 
 const JOB_LIST =
-  "*, job_leak_checks(performed), systems(id, name, site_address, site_postcode, access_notes, client_id, clients(name))";
+  "*, job_leak_checks(performed), systems(id, name, site_address, site_postcode, access_notes, client_id, clients(name, contact_name, phone))";
 
 const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);

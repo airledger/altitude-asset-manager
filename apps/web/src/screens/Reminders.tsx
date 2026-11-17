@@ -8,6 +8,7 @@ import type { Assets } from "../assets";
 import { Icon } from "../icons";
 import type { JobsApi } from "../jobs";
 import { enqueue, sendOrSave } from "../outbox";
+import type { SmsApi } from "../sms";
 import { loadOverview, reminderMessages, type Overview, type SiteView } from "../overview";
 import { Empty, Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
@@ -22,6 +23,7 @@ export function RemindersPage(p: {
   jobs: JobsApi;
   business: Business;
   query: URLSearchParams;
+  sms?: SmsApi;
 }) {
   const data = useLoad(() => loadOverview(p.assets, p.jobs, todayIso()), [p.assets, p.jobs]);
   const me = useLoad(() => p.jobs.me(), [p.jobs]);
@@ -99,6 +101,7 @@ export function RemindersPage(p: {
                     business={p.business}
                     engineer={me.value?.name ?? ""}
                     assets={p.assets}
+                    sms={p.sms}
                     done={data.reload}
                   />
                 )}
@@ -119,6 +122,7 @@ function Contact(p: {
   business: Business;
   engineer: string;
   assets: Assets;
+  sms?: SmsApi | undefined;
   done: () => void;
 }) {
   const c = p.site.client;
@@ -132,6 +136,28 @@ function Contact(p: {
   const [note, setNote] = useState("");
   const { busy, error, run } = useAction();
   const tel = (c?.phone ?? "").replace(/\s/g, "");
+  const [sent, setSent] = useState(false);
+  const text = useAction();
+  // Sends the text from the business's text account and logs it as contacted.
+  const sendText = () =>
+    void text.run(async () => {
+      if (!p.sms) return;
+      await p.sms.send({
+        to: tel,
+        message: sms.trim(),
+        kind: "service_due",
+        clientId: c?.id ?? null,
+        systemId: p.site.system.id,
+      });
+      setSent(true);
+      await p.assets.logContact({
+        system_id: p.site.system.id,
+        date: todayIso(),
+        method: "Text message",
+        note: "Sent from Air Ledger",
+      });
+      p.done();
+    });
   const copy = (t: string) => void navigator.clipboard?.writeText(t);
   const log = (thenBook: boolean) =>
     void run(async () => {
@@ -184,6 +210,16 @@ function Contact(p: {
         <button type="button" className="btn" onClick={() => copy(sms)}>
           Copy text
         </button>
+        {tel && p.sms && (
+          <button
+            type="button"
+            className="btn pri"
+            disabled={text.busy || sent || !sms.trim()}
+            onClick={sendText}
+          >
+            {sent ? "Text sent" : text.busy ? "Sending…" : "Send text"}
+          </button>
+        )}
         {tel && (
           <>
             <a className="btn" href={`sms:${tel}?&body=${encodeURIComponent(sms)}`}>
@@ -195,6 +231,7 @@ function Contact(p: {
           </>
         )}
       </div>
+      <ErrorLine error={text.error} />
       <h3>Log it</h3>
       <ErrorLine error={error} />
       <div className="grid2">

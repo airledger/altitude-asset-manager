@@ -31,6 +31,7 @@ import { ScanButton, StickersPage } from "./Stickers";
 import { Team } from "./Team";
 import { TimesheetsPage } from "./Timesheets";
 import { timesApi } from "../timesheets";
+import { smsApi } from "../sms";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
@@ -96,6 +97,7 @@ export function Shell(props: {
   const payments = useMemo(() => paymentsApi(api.client, current.id), [api, current.id]);
   const refrigerant = useMemo(() => refrigerantApi(api.client, current.id), [api, current.id]);
   const times = useMemo(() => timesApi(api.client, current.id), [api, current.id]);
+  const sms = useMemo(() => smsApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -190,6 +192,7 @@ export function Shell(props: {
             userId={session.user.id}
             reports={reports}
             times={times}
+            sms={sms}
             invoices={owner ? invoices : null}
           />
         );
@@ -213,7 +216,7 @@ export function Shell(props: {
       case "reports":
         return <ReportsPage reports={reports} />;
       case "reminders":
-        return <RemindersPage assets={assets} jobs={jobs} business={current} query={r.query} />;
+        return <RemindersPage assets={assets} jobs={jobs} business={current} query={r.query} sms={sms} />;
       case "orders":
         return <OrdersPage assets={assets} jobs={jobs} query={r.query} />;
       case "refrigerant":
@@ -230,7 +233,14 @@ export function Shell(props: {
         return <Team api={api} jobs={jobs} business={current} userId={session.user.id} />;
       case "business":
         return (
-          <BusinessSettings api={api} assets={assets} reports={reports} business={current} saved={reload} />
+          <BusinessSettings
+            api={api}
+            assets={assets}
+            reports={reports}
+            sms={sms}
+            business={current}
+            saved={reload}
+          />
         );
       case "stickers":
       case "labels":
