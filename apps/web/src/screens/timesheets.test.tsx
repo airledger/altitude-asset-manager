@@ -226,7 +226,7 @@ describe("timesheets page", () => {
       "owner",
     );
     expect(await screen.findByText("Week of 16 Nov 2026")).toBeTruthy();
-    expect(screen.getByText("1 job · travel 30 min · on site 2 h")).toBeTruthy();
+    expect(await screen.findByText("1 job · travel 30 min · on site 2 h")).toBeTruthy();
     expect(screen.getByText("2 h 30 min")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Download CSV" })).toBeTruthy();
   });

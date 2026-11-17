@@ -2,13 +2,15 @@
 // per engineer and a month view. Owners drag jobs to another day or engineer. Each person can also put
 // their jobs in Apple Calendar, Google Calendar or Outlook with a private link.
 import { addDays } from "@airledger/domain";
-import { useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useState, type DragEvent, type ReactNode } from "react";
 import type { Business } from "../api";
+import { busyOn, busyWhen, jobFromBusy, localTime, type BusyBlock, type DiaryApi } from "../diary";
 import { Icon } from "../icons";
 import { calendarUrls, type JobListRow, type JobsApi, type PersonRow } from "../jobs";
 import { Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, todayIso, useLoad } from "./Assets";
+import { DiaryCard } from "./Diary";
 
 type View = "agenda" | "week" | "month";
 const VIEWS: Record<View, string> = { agenda: "Agenda", week: "Week", month: "Month" };
@@ -31,10 +33,13 @@ export function SchedulePage({
   jobs,
   business,
   query,
+  diary,
 }: {
   jobs: JobsApi;
   business: Business;
   query: URLSearchParams;
+  /** People's own calendars: when they're busy. */
+  diary?: DiaryApi;
 }) {
   const owner = business.role === "owner";
   const list = useLoad(() => jobs.jobs(), [jobs]);
@@ -49,6 +54,29 @@ export function SchedulePage({
   // Engineers see their own jobs to start with; owners see everyone's.
   const who = query.get("who") ?? (owner || !me ? "all" : me.id);
   const q = { view, d, who };
+  const [from, to] =
+    view === "agenda"
+      ? [d, addDays(d, 14)]
+      : view === "week"
+        ? [mondayOf(d), addDays(mondayOf(d), 6)]
+        : [addDays(monthStart(d, 0), -7), addDays(monthStart(d, 1), 7)];
+  const busy = useLoad(
+    () => (diary ? diary.busy(from, to) : Promise.resolve([] as BusyBlock[])),
+    [diary, from, to],
+  );
+  // Reads calendars that haven't been read for a while, then shows any new busy times.
+  useEffect(() => {
+    if (!diary) return;
+    let live = true;
+    diary.sync().then(
+      (r) => live && r.length > 0 && busy.reload(),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diary]);
 
   if (!list.value || !people.value)
     return (
@@ -65,6 +93,31 @@ export function SchedulePage({
     dated
       .filter((j) => j.date === iso && (lane === undefined || (j.engineer_id ?? NOBODY) === lane))
       .sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99"));
+
+  const personOf = (userId: string) => team.find((x) => x.user_id === userId) ?? null;
+  // Busy times from people's calendars, except where they already have a job booked at that time.
+  const busyFor = (iso: string, lane?: string) =>
+    busyOn(busy.value ?? [], iso).filter((b) => {
+      const person = personOf(b.user_id);
+      if (!person) return false;
+      if (lane !== undefined ? person.id !== lane : who !== "all" && person.id !== who) return false;
+      return !dated.some(
+        (j) =>
+          j.engineer_id === person.id && j.date === iso && j.time?.slice(0, 5) === localTime(b.starts_at),
+      );
+    });
+  const busyChip = (b: BusyBlock, iso: string, withName: boolean) => {
+    const person = personOf(b.user_id);
+    return (
+      <BusyChip
+        key={b.id}
+        block={b}
+        iso={iso}
+        personId={person?.id ?? null}
+        name={withName ? person?.name : undefined}
+      />
+    );
+  };
 
   // Lanes for the week: everyone active (or just the person chosen), plus anyone who left but still has jobs.
   const lanes: { id: string; name: string }[] =
@@ -149,7 +202,13 @@ export function SchedulePage({
         </div>
         <ErrorLine error={act.error} />
         <h2 className="sched-title">{title(view, d)}</h2>
-        {view === "agenda" && <Agenda from={d} onDay={onDay} />}
+        {view === "agenda" && (
+          <Agenda
+            from={d}
+            onDay={onDay}
+            busy={(iso) => busyFor(iso).map((b) => busyChip(b, iso, who === "all"))}
+          />
+        )}
         {view === "week" && (
           <div className="week-scroll">
             <div className="week" role="table" aria-label={title(view, d)}>
@@ -174,6 +233,7 @@ export function SchedulePage({
                       onDragOver={owner ? (e) => e.preventDefault() : undefined}
                       onDrop={owner ? drop(iso, lane.id) : undefined}
                     >
+                      {busyFor(iso, lane.id).map((b) => busyChip(b, iso, false))}
                       {onDay(iso, lane.id).map((j) => (
                         <JobChip key={j.id} job={j} draggable={canDrag(j)} />
                       ))}
@@ -234,6 +294,7 @@ export function SchedulePage({
           <p className="note">Drag a job to another day{view === "week" ? " or engineer" : ""} to move it.</p>
         )}
       </section>
+      {diary && <DiaryCard diary={diary} owner={owner} team={team} me={me} changed={busy.reload} />}
       <CalendarLinks jobs={jobs} owner={owner} me={me} team={team} business={business} />
     </>
   );
@@ -292,48 +353,74 @@ function JobChip({ job: j, draggable, short }: { job: JobListRow; draggable: boo
   );
 }
 
+/** Someone's busy in their own calendar: tap to book a job in that time. */
+function BusyChip(p: { block: BusyBlock; iso: string; personId: string | null; name?: string | undefined }) {
+  const b = p.block;
+  return (
+    <a
+      className="jobchip busy"
+      href={jobFromBusy(b, p.iso, p.personId)}
+      title={`${p.name ? `${p.name}: ` : ""}${busyWhen(b)} ${b.title} (from their calendar). Tap to book a job then.`}
+    >
+      <b>{busyWhen(b)}</b> {p.name ? `${p.name} · ` : ""}
+      {b.title}
+    </a>
+  );
+}
+
 /** Phones: the next two weeks, day by day, skipping empty days. */
-function Agenda({ from, onDay }: { from: string; onDay: (iso: string) => JobListRow[] }) {
+function Agenda({
+  from,
+  onDay,
+  busy,
+}: {
+  from: string;
+  onDay: (iso: string) => JobListRow[];
+  busy: (iso: string) => ReactNode[];
+}) {
   const list = days(from, 14)
-    .map((iso) => ({ iso, jobs: onDay(iso) }))
-    .filter((x) => x.jobs.length);
+    .map((iso) => ({ iso, jobs: onDay(iso), busy: busy(iso) }))
+    .filter((x) => x.jobs.length || x.busy.length);
   if (!list.length) return <p className="note">Nothing booked in these two weeks.</p>;
   return (
     <div className="agenda">
-      {list.map(({ iso, jobs }) => (
+      {list.map(({ iso, jobs, busy: blocked }) => (
         <section key={iso}>
           <h3 className={iso === todayIso() ? "today" : undefined}>
             {iso === todayIso() ? "Today, " : ""}
             {label(iso, { weekday: "long", day: "numeric", month: "long" })}
           </h3>
-          <ul className="rows">
-            {jobs.map((j) => (
-              <li key={j.id}>
-                <a className="item" href={`#/job/${j.id}`}>
-                  <span className="datebox" aria-hidden="true">
-                    <b>{j.time ? j.time.slice(0, 5) : "Day"}</b>
-                    {j.duration_hrs ? `${j.duration_hrs} h` : ""}
-                  </span>
-                  <span className="main">
-                    <span className="t">
-                      {j.type} · {j.systems?.clients?.name ?? "No client"}
+          {blocked.length > 0 && <div className="busy-list">{blocked}</div>}
+          {jobs.length > 0 && (
+            <ul className="rows">
+              {jobs.map((j) => (
+                <li key={j.id}>
+                  <a className="item" href={`#/job/${j.id}`}>
+                    <span className="datebox" aria-hidden="true">
+                      <b>{j.time ? j.time.slice(0, 5) : "Day"}</b>
+                      {j.duration_hrs ? `${j.duration_hrs} h` : ""}
                     </span>
-                    <span className="m">
-                      {[j.systems?.site_address, j.systems?.site_postcode, j.engineer || "Not assigned"]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    <span className="main">
+                      <span className="t">
+                        {j.type} · {j.systems?.clients?.name ?? "No client"}
+                      </span>
+                      <span className="m">
+                        {[j.systems?.site_address, j.systems?.site_postcode, j.engineer || "Not assigned"]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                     </span>
-                  </span>
-                  {j.status !== "booked" && (
-                    <span className={`pill${j.status === "completed" ? " green" : ""}`}>
-                      {j.status === "completed" ? "Done" : "Cancelled"}
-                    </span>
-                  )}
-                  <Icon name="chevron" size={18} />
-                </a>
-              </li>
-            ))}
-          </ul>
+                    {j.status !== "booked" && (
+                      <span className={`pill${j.status === "completed" ? " green" : ""}`}>
+                        {j.status === "completed" ? "Done" : "Cancelled"}
+                      </span>
+                    )}
+                    <Icon name="chevron" size={18} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       ))}
     </div>

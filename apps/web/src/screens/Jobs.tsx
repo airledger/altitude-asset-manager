@@ -775,7 +775,8 @@ function BookJob(p: {
       : (p.query.get("engineer") ?? defaultPerson(team, engineer.value ?? "", p.userId)?.id ?? ""));
   // A job booked to someone who has since left still shows them.
   const choices = team.filter((x) => x.active || x.id === engineerId);
-  const duration = j?.duration_hrs ?? (ctx ? 0.5 + 0.5 * Math.max(1, indoor) : null);
+  const hours = Number(p.query.get("hours")) || null;
+  const duration = j?.duration_hrs ?? hours ?? (ctx ? 0.5 + 0.5 * Math.max(1, indoor) : null);
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -843,7 +844,12 @@ function BookJob(p: {
           </select>
         </label>
         <Text name="date" label="Date" type="date" value={date} required />
-        <Text name="time" label="Time (optional)" type="time" value={j?.time?.slice(0, 5)} />
+        <Text
+          name="time"
+          label="Time (optional)"
+          type="time"
+          value={j?.time?.slice(0, 5) ?? p.query.get("time") ?? undefined}
+        />
         <Text name="duration_hrs" label="Allow (hours)" type="number" value={duration} />
       </div>
       <Area name="notes" label="Notes for the engineer" value={j?.notes ?? p.query.get("notes") ?? ""} />
