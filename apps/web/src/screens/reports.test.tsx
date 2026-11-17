@@ -98,7 +98,7 @@ function app(
   const fake = fakeSupabase({
     signedInAs: ed,
     rpcErrors: opts.rpcErrors ?? {},
-    rpc: opts.rpc,
+    rpc: opts.rpc ?? {},
     tables: {
       members: [opts.role ? { ...member, role: opts.role } : member],
       org_settings: [{ default_interval_months: 12, report_email: "office@a.test", email: "hello@a.test" }],
