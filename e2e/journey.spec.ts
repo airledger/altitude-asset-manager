@@ -217,7 +217,9 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
 
   await step("Text the customer “On my way” from the job", async () => {
     await open(page, `#/job/${jobId}`);
-    await expect(page.getByLabel("Message", { exact: true })).toHaveValue(/^Hi Pat, it's .* on my way/);
+    const card = page.locator("section", { has: page.getByRole("heading", { name: "Text the customer" }) });
+    // The message box is labelled "Message"; its accessible name also includes the text inside it.
+    await expect(card.locator("textarea")).toHaveValue(/^Hi Pat, it's .* on my way/);
     await page.getByRole("button", { name: /Send “On my way”/ }).click();
     // Until the business's text account is set up the server says so; after that, the drama number is refused.
     await expect(page.getByText(/aren't set up yet|Sent to|didn't take/).first()).toBeVisible({
