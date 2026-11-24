@@ -33,6 +33,8 @@ import { TimesheetsPage } from "./Timesheets";
 import { timesApi } from "../timesheets";
 import { smsApi } from "../sms";
 import { diaryApi } from "../diary";
+import { importApi } from "../importer";
+import { ImportPage } from "./Import";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
@@ -60,7 +62,7 @@ export function readHash(hash = window.location.hash): Route {
 
 /** Which tab a page belongs under. */
 const tabOf = (page: string): Tab =>
-  ["client", "system", "register"].includes(page)
+  ["client", "system", "register", "import"].includes(page)
     ? "clients"
     : ["job", "schedule", "orders", "reports", "refrigerant", "timesheets"].includes(page)
       ? "jobs"
@@ -100,6 +102,7 @@ export function Shell(props: {
   const times = useMemo(() => timesApi(api.client, current.id), [api, current.id]);
   const sms = useMemo(() => smsApi(api.client, current.id), [api, current.id]);
   const diary = useMemo(() => diaryApi(api.client, current.id), [api, current.id]);
+  const imports = useMemo(() => importApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -136,7 +139,7 @@ export function Shell(props: {
   function page(r: Route) {
     switch (r.page) {
       case "clients":
-        return <ClientList assets={assets} />;
+        return <ClientList assets={assets} owner={owner} />;
       case "client":
         return (
           <ClientPage assets={assets} id={r.arg}>
@@ -174,6 +177,15 @@ export function Shell(props: {
         );
       case "jobs":
         return <JobsPage jobs={jobs} show={r.query.get("show")} owner={owner} />;
+      case "import":
+        return owner ? (
+          <ImportPage imports={imports} />
+        ) : (
+          <section className="card">
+            <h1>Owners only</h1>
+            <p>Only the business's owners can import.</p>
+          </section>
+        );
       case "timesheets":
         return owner ? (
           <TimesheetsPage times={times} week={r.query.get("week")} />

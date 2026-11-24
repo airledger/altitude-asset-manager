@@ -440,35 +440,57 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
     });
 
   if (!phone)
-    await step("The engineer joins, sees their job and no prices", async () => {
-      const ctx = await browser.newContext();
-      const eng = await ctx.newPage();
-      await signIn(eng, ENGINEER, `?invite=${new URL(invite).searchParams.get("invite")}`);
-      await eng.getByRole("button", { name: "Join" }).click();
-      await expect(eng.getByRole("navigation", { name: "Sections" })).toBeVisible();
-      await expect(eng.getByRole("link", { name: /Invoices/ })).toHaveCount(0);
-      await eng.evaluate(() => (window.location.hash = "#/invoices"));
-      await expect(eng.getByText("Owners only")).toBeVisible();
-      await eng.evaluate(() => (window.location.hash = "#/jobs?show=all"));
-      await expect(eng.getByText(/Annual service/).first()).toBeVisible();
-      // They can see the client is on contract, but not what it costs.
-      await eng.evaluate((id) => (window.location.hash = `#/client/${id}`), clientId);
-      const card = eng.getByRole("region", { name: "Contracts" });
-      await expect(card.getByText("Planned maintenance")).toBeVisible();
-      await expect(card.getByText(/£/)).toHaveCount(0);
-      await expect(card.getByRole("button", { name: "Add contract" })).toHaveCount(0);
-      await info.attach("Engineer's view", {
-        body: await eng.screenshot({ fullPage: true }),
-        contentType: "image/png",
+    await step("Import clients and units from a spreadsheet, then undo it", async () => {
+      await open(page, "#/import");
+      const csv = [
+        "Customer Name,Address,Postcode,Make,Model,Last Serviced",
+        'Imported Ltd (test),"2 Mill Lane, Poole",BH15 2BB,Mitsubishi,MSZ-AP25VG,01/06/2026',
+        "Imported Ltd (test),2 Mill Lane,BH15 2BB,Mitsubishi,MUZ-AP25VG,",
+      ].join("\n");
+      await page.getByLabel("Spreadsheet to import", { exact: true }).setInputFiles({
+        name: "e2e import.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(csv),
       });
-
-      // The engineer deletes their own account; the business stays.
-      await eng.evaluate(() => (window.location.hash = "#/account"));
-      await eng.getByLabel("Type DELETE to confirm", { exact: true }).fill("DELETE");
-      await eng.getByRole("button", { name: "Delete my account" }).click();
-      await expect(eng.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
-      await ctx.close();
+      await expect(page.getByText(/2 rows ready/)).toBeVisible();
+      await page.getByRole("button", { name: "Import 2 rows" }).click();
+      await expect(page.getByText(/Added 1 client, 1 install, 2 units and 1 last service/)).toBeVisible({
+        timeout: 30_000,
+      });
+      page.once("dialog", (d) => void d.accept());
+      await page.getByRole("button", { name: "Undo this import" }).click();
+      await expect(page.getByText(/undone/).first()).toBeVisible({ timeout: 30_000 });
     });
+
+  await step("The engineer joins, sees their job and no prices", async () => {
+    const ctx = await browser.newContext();
+    const eng = await ctx.newPage();
+    await signIn(eng, ENGINEER, `?invite=${new URL(invite).searchParams.get("invite")}`);
+    await eng.getByRole("button", { name: "Join" }).click();
+    await expect(eng.getByRole("navigation", { name: "Sections" })).toBeVisible();
+    await expect(eng.getByRole("link", { name: /Invoices/ })).toHaveCount(0);
+    await eng.evaluate(() => (window.location.hash = "#/invoices"));
+    await expect(eng.getByText("Owners only")).toBeVisible();
+    await eng.evaluate(() => (window.location.hash = "#/jobs?show=all"));
+    await expect(eng.getByText(/Annual service/).first()).toBeVisible();
+    // They can see the client is on contract, but not what it costs.
+    await eng.evaluate((id) => (window.location.hash = `#/client/${id}`), clientId);
+    const card = eng.getByRole("region", { name: "Contracts" });
+    await expect(card.getByText("Planned maintenance")).toBeVisible();
+    await expect(card.getByText(/£/)).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Add contract" })).toHaveCount(0);
+    await info.attach("Engineer's view", {
+      body: await eng.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+
+    // The engineer deletes their own account; the business stays.
+    await eng.evaluate(() => (window.location.hash = "#/account"));
+    await eng.getByLabel("Type DELETE to confirm", { exact: true }).fill("DELETE");
+    await eng.getByRole("button", { name: "Delete my account" }).click();
+    await expect(eng.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await ctx.close();
+  });
 
   await step("Delete the business", async () => {
     await open(page, "#/business");
