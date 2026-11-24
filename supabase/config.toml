@@ -422,3 +422,6 @@ verify_jwt = false
 
 [functions.payments]
 verify_jwt = false
+
+[functions.calendar]
+verify_jwt = false

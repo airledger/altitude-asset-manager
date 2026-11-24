@@ -1,0 +1,98 @@
+name: Update the live app
+
+# The real app at app.airledger.co.uk. Runs ONLY when started by hand (Actions → Update the live app → Run
+# workflow), never on merge, and asks you to type LIVE so it can't be started by accident.
+# - database: applies new migrations to the live Supabase project and deploys its server functions.
+# - site: builds the app against the live project and publishes it to GitHub Pages (needs Settings → Pages →
+#   Source set to "GitHub Actions", which replaces the old app served from the repository's root).
+# Needs repository secrets SUPABASE_ACCESS_TOKEN and SUPABASE_PROD_DB_PASSWORD. Server function secrets (Resend,
+# Twilio, Xero, QuickBooks, Stripe) are set in the live project's dashboard, never here.
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "What to update"
+        type: choice
+        options: [database and site, database, site]
+        default: database and site
+      confirm:
+        description: "Type LIVE to update the real app"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency: live
+
+env:
+  SUPABASE_PROJECT_REF: txtdydgflwvzxjrfdbly
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - if: inputs.confirm != 'LIVE'
+        run: |
+          echo "Type LIVE in the confirm box to update the real app."
+          exit 1
+
+  database:
+    needs: check
+    if: inputs.what != 'site'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push --include-all
+      - env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy send-report --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy job-invite --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy accounts --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy portal-notify --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy payments --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy send-sms --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy calendar-sync --project-ref "$SUPABASE_PROJECT_REF" --use-api
+          supabase functions deploy calendar --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+
+  build:
+    needs: [check, database]
+    if: always() && needs.check.result == 'success' && needs.database.result != 'failure' && inputs.what != 'database'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:live -w @airledger/web
+      - run: |
+          echo app.airledger.co.uk > apps/web/dist/CNAME
+          cp apps/web/dist/index.html apps/web/dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  site:
+    needs: build
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
