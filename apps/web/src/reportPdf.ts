@@ -20,6 +20,8 @@ export interface ReportPdfInput {
   meta: { ref: string; rev: number; issuedAt: string; hash: string };
   /** Risk assessments for the job and who signed them on site. */
   rams?: { name: string; signed: { name: string; signed_at: string }[] }[];
+  /** Completed forms: each question, its answer, and whether it's a fail to flag. */
+  forms?: { name: string; rows: [string, string, boolean][] }[];
 }
 
 type Rgb = [number, number, number];
@@ -519,6 +521,13 @@ export async function reportPdf(r: ReportPdfInput): Promise<Blob> {
       ]),
       70,
     );
+  }
+
+  // ---------- forms and checklists ----------
+  for (const f of r.forms ?? []) {
+    if (!f.rows.length) continue;
+    heading(f.name);
+    kv(f.rows, 80);
   }
 
   // ---------- next service ----------

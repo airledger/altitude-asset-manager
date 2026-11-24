@@ -2,6 +2,7 @@
 // A report is issued once and never changed. Editing the job afterwards means issuing the next revision
 // under the same reference; the database refuses anything else.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FormField } from "./forms";
 import { newReportRef, reportFingerprint, type IsoDate } from "@airledger/domain";
 import type { ClientRow, SystemRow, UnitRow } from "./assets";
 import { toJob, type JobListRow, type JobRecord } from "./jobs";
@@ -137,6 +138,20 @@ export function reportsApi(sb: SupabaseClient, orgId: string) {
   return {
     orgId,
 
+    /** Completed forms and checklists for the report. */
+    async jobForms(
+      jobId: string,
+    ): Promise<{ name: string; fields: FormField[]; answers: Record<string, string> }[]> {
+      const { data, error } = await sb
+        .from("job_forms")
+        .select("name, fields, answers")
+        .eq("org_id", orgId)
+        .eq("job_id", jobId)
+        .not("completed_at", "is", null)
+        .order("updated_at");
+      fail(error);
+      return (data as { name: string; fields: FormField[]; answers: Record<string, string> }[] | null) ?? [];
+    },
     async signoff(jobId: string): Promise<SignoffRow | null> {
       const { data, error } = await sb.from("job_signoffs").select("*").eq("job_id", jobId).maybeSingle();
       fail(error);

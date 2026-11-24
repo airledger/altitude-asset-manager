@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assets, type ContactLogRow, type New, type SiteRecordRow } from "./assets";
 import { jobsApi, type Completion } from "./jobs";
 import { isNetworkError } from "./offline";
+import { formsApi, type JobForm } from "./forms";
 import { timesApi, type Stage } from "./timesheets";
 
 export type OutboxItem = {
@@ -23,6 +24,7 @@ export type OutboxItem = {
   | { kind: "contact"; row: Omit<ContactLogRow, "id"> }
   | { kind: "siteRecord"; row: New<SiteRecordRow> }
   | { kind: "time"; jobId: string; stage: Stage; at: string; name: string }
+  | { kind: "form"; form: JobForm }
 );
 
 export type NewItem = OutboxItem extends infer T
@@ -201,6 +203,8 @@ async function send(sb: SupabaseClient, item: OutboxItem) {
     }
     case "time":
       return timesApi(sb, item.orgId).clock(item.jobId, item.stage, item.at, item.name);
+    case "form":
+      return formsApi(sb, item.orgId).saveForJob(item.form);
   }
 }
 

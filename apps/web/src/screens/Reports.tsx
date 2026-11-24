@@ -1,5 +1,6 @@
 // Service reports (spec F10): sign-off, the report card on a job, sending, and the Reports list.
 import { formatDate, systemInfo } from "@airledger/domain";
+import { formRows } from "../forms";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Business } from "../api";
 import { toDomain, type Assets, type ClientRow, type SystemRow, type UnitRow } from "../assets";
@@ -172,7 +173,7 @@ async function buildAndIssue(a: {
   const hash = await fingerprint(snapshot({ ...ctx, client: a.client }));
   const { ref, rev } = nextRef(ctx.job, a.previous, todayIso());
   const info = systemInfo(toDomain(ctx.system), ctx.history.map(toJob), ctx.settings, todayIso());
-  const [profile, logo, engineerSig, customerSig, photos, rams] = await Promise.all([
+  const [profile, logo, engineerSig, customerSig, photos, rams, forms] = await Promise.all([
     a.assets.profile(),
     a.business.logoUrl
       ? fetch(a.business.logoUrl)
@@ -185,6 +186,7 @@ async function buildAndIssue(a: {
       : Promise.resolve(null),
     Promise.all((ctx.record.report?.photo_file_ids ?? []).map((id) => a.reports.fileBlob(id))),
     a.assets.jobRams(ctx.job.id, ctx.system.id).catch(() => []),
+    a.reports.jobForms(ctx.job.id).catch(() => []),
   ]);
   const { reportPdf } = await import("../reportPdf");
   const pdf = await reportPdf({
@@ -200,6 +202,7 @@ async function buildAndIssue(a: {
     images: { logo, engineerSig, customerSig, photos: photos.filter((b): b is Blob => !!b) },
     meta: { ref, rev, issuedAt: new Date().toISOString(), hash },
     rams: rams.map((x) => ({ name: x.doc.name, signed: x.signed })),
+    forms: forms.map((f) => ({ name: f.name, rows: formRows(f) })),
   });
   return a.reports.issue({ jobId: ctx.job.id, ref, rev, hash, pdf });
 }
