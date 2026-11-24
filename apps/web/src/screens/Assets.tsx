@@ -72,7 +72,7 @@ export async function brandFor(assets: Assets, businessName: string): Promise<Pr
 
 // ---------- clients ----------
 
-export function ClientList({ assets }: { assets: Assets }) {
+export function ClientList({ assets, owner = false }: { assets: Assets; owner?: boolean }) {
   const { value: clients, error } = useLoad(() => assets.clients(), [assets]);
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
@@ -86,6 +86,11 @@ export function ClientList({ assets }: { assets: Assets }) {
         <a className="btn" href="#/register">
           Asset register
         </a>
+        {owner && (
+          <a className="btn" href="#/import">
+            Import
+          </a>
+        )}
         <a className="btn pri" href="#/client/new">
           <Icon name="plus" size={18} />
           Add client
