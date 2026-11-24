@@ -15,6 +15,8 @@ import { ErrorLine } from "../useAction";
 import { todayIso, useLoad } from "./Assets";
 import { JobRows } from "./Jobs";
 import { RenewalsCard } from "./Contracts";
+import { SubsAlert } from "./Subs";
+import type { SubsApi } from "../subs";
 import { RequestsCard } from "./PortalAdmin";
 import { ScanBox } from "./Stickers";
 
@@ -30,6 +32,8 @@ export function Home(p: {
   contracts?: ContractsApi;
   /** Visit requests from customers' portals. */
   portal?: PortalApi;
+  /** Owners: subcontractors' charges to approve and papers running out. */
+  subs?: SubsApi | undefined;
   current: Business;
   businesses: Business[];
   choose: (id: string) => void;
@@ -175,6 +179,7 @@ export function Home(p: {
       </div>
       {p.portal && <RequestsCard portal={p.portal} orgId={p.current.id} />}
       {owner && p.contracts && <RenewalsCard contracts={p.contracts} />}
+      {owner && p.subs && <SubsAlert subs={p.subs} />}
       {o && <WarrantyCard o={o} />}
       <div className="split">
         <ScanBox />

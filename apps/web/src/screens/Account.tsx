@@ -1,13 +1,23 @@
 // Your account: who you're signed in as, help and privacy, and deleting the account (app stores require
 // it inside the app). Owners can also delete a business from its Business page.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Api, Business } from "../api";
 import { appOrigin } from "../native";
 import { Loading, PageHead } from "../ui";
 import { ErrorLine, useAction } from "../useAction";
 import { go, useLoad } from "./Assets";
 
-export function AccountPage({ api, email, signOut }: { api: Api; email: string; signOut: () => void }) {
+export function AccountPage({
+  api,
+  email,
+  signOut,
+  children,
+}: {
+  api: Api;
+  email: string;
+  signOut: () => void;
+  children?: ReactNode;
+}) {
   const plan = useLoad(() => api.deletionPlan(), [api]);
   const [typed, setTyped] = useState("");
   const { busy, error, run } = useAction();
@@ -15,6 +25,7 @@ export function AccountPage({ api, email, signOut }: { api: Api; email: string; 
   return (
     <>
       <PageHead title="Your account" sub={email} />
+      {children}
       <section className="card">
         <h2>Help</h2>
         <ul className="plain">

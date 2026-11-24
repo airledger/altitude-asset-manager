@@ -82,6 +82,7 @@ export function Team({
         phone: f.text("phone"),
         fgas_cert: f.text("fgas_cert"),
         active: true,
+        ...(owner ? { sub: f.bool("sub"), company: f.text("company") } : {}),
       };
       const id = await jobs.savePerson({ ...row, id: p?.id });
       setEditing(null);
@@ -127,7 +128,11 @@ export function Team({
                   <b>{p.name || p.email || "No name"}</b>
                   {mine && " (you)"}
                   <div className="note">
-                    {m?.role === "owner" ? "Owner: sees prices and invoices" : "Engineer"}
+                    {m?.role === "owner"
+                      ? "Owner: sees prices and invoices"
+                      : p.sub
+                        ? `Subcontractor${p.company ? `, ${p.company}` : ""}: sees only the jobs sent to them`
+                        : "Engineer"}
                     {!p.user_id &&
                       (pending
                         ? ` · invited ${day(pending.createdAt)}, not joined yet`
@@ -197,7 +202,8 @@ export function Team({
           <h2>Add an engineer</h2>
           <p className="note">
             Add their details and Air Ledger makes an invite link with everything filled in. They only choose
-            a password. You can book jobs for them straight away, before they've joined.
+            a password. You can book jobs for them straight away, before they've joined. For an outside
+            engineer, tick Subcontractor.
           </p>
           <PersonForm person={null} busy={busy} owner save={save} />
         </section>
@@ -257,7 +263,14 @@ function PersonForm(p: {
         )}
         <Text name="phone" label="Mobile" type="tel" value={x?.phone} />
         <Text name="fgas_cert" label="F-gas certificate number" value={x?.fgas_cert} />
+        {p.owner && <Text name="company" label="Company (subcontractors)" value={x?.company} />}
       </div>
+      {p.owner && (
+        <label className="check">
+          <input name="sub" type="checkbox" defaultChecked={!!x?.sub} />
+          Subcontractor: they see only the jobs you send them, never your prices, other clients or team
+        </label>
+      )}
       {!x && (
         <label className="check">
           <input name="invite" type="checkbox" defaultChecked />

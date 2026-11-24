@@ -1,7 +1,8 @@
 // Everything the app asks Supabase for. Screens call these, so tests can pass a fake client.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type Role = "owner" | "member";
+/** A subcontractor ("sub") sees only the jobs booked to them. */
+export type Role = "owner" | "member" | "sub";
 
 export interface Business {
   id: string;
