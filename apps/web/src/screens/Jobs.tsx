@@ -42,6 +42,8 @@ import { RamsCard } from "./Documents";
 import { TimesCard } from "./Timesheets";
 import { OnMyWayCard } from "./Texts";
 import { FormsCard } from "./Forms";
+import { SubChargeCard, SubReplyCard, subReplyText } from "./Subs";
+import type { SubsApi } from "../subs";
 import { formsForJob, formsToDo, type FormsApi, type JobForm } from "../forms";
 import type { SmsApi } from "../sms";
 import type { TimesApi } from "../timesheets";
@@ -114,11 +116,14 @@ export function JobsPage({
   jobs,
   show,
   owner = false,
+  sub = false,
 }: {
   jobs: JobsApi;
   show: string | null;
   /** Owners get the timesheets. */
   owner?: boolean;
+  /** A subcontractor: just the jobs sent to them. */
+  sub?: boolean;
 }) {
   const list = useLoad(() => jobs.jobs(), [jobs]);
   const filter: Filter = show && show in FILTERS ? (show as Filter) : "booked";
@@ -141,30 +146,41 @@ export function JobsPage({
   const booked = all.filter((j) => j.status === "booked");
   return (
     <>
-      <PageHead title="Jobs" sub="Book, complete and look back over every visit.">
+      <PageHead
+        title={sub ? "Your jobs" : "Jobs"}
+        sub={
+          sub
+            ? "The jobs sent to you. Accept each one, complete it, then send your charge."
+            : "Book, complete and look back over every visit."
+        }
+      >
         <a className="btn" href="#/schedule">
           <Icon name="calendar" size={18} />
           Schedule
         </a>
-        <a className="btn" href="#/orders">
-          Parts to order
-        </a>
-        <a className="btn" href="#/refrigerant">
-          Refrigerant
-        </a>
-        {owner && (
-          <a className="btn" href="#/timesheets">
-            Timesheets
-          </a>
+        {!sub && (
+          <>
+            <a className="btn" href="#/orders">
+              Parts to order
+            </a>
+            <a className="btn" href="#/refrigerant">
+              Refrigerant
+            </a>
+            {owner && (
+              <a className="btn" href="#/timesheets">
+                Timesheets
+              </a>
+            )}
+            <a className="btn" href="#/reports">
+              <Icon name="report" size={18} />
+              Reports
+            </a>
+            <a className="btn pri" href="#/job/new">
+              <Icon name="plus" size={18} />
+              Book a job
+            </a>
+          </>
         )}
-        <a className="btn" href="#/reports">
-          <Icon name="report" size={18} />
-          Reports
-        </a>
-        <a className="btn pri" href="#/job/new">
-          <Icon name="plus" size={18} />
-          Book a job
-        </a>
       </PageHead>
       <div className="kpis three">
         <div className="kpi">
@@ -279,6 +295,8 @@ export function JobPage(p: {
   sms?: SmsApi;
   /** Forms and checklists. */
   forms?: FormsApi;
+  /** Subcontractors' replies and charges. */
+  subs?: SubsApi;
   /** Owners only. */
   invoices?: InvoicesApi | null;
 }) {
@@ -290,6 +308,7 @@ export function JobPage(p: {
   const mode = p.query.get("do");
   const act = useAction();
   const owner = p.business.role === "owner";
+  const sub = p.business.role === "sub";
   const { items: outbox } = useOutbox();
   const waiting = outbox.find((i) => i.kind === "complete" && i.jobId === p.id);
   const me = useLoad(() => p.jobs.me().catch(() => null), [p.jobs]);
@@ -452,6 +471,21 @@ export function JobPage(p: {
           and they'll be asked again.
         </p>
       )}
+      {owner && j.people?.sub && j.status === "booked" && (
+        <p className={`banner${j.sub_reply === "accepted" ? " ok" : ""}`} role="status">
+          {subReplyText(j.sub_reply ?? "", j.sub_reply_note ?? "", j.people.name)}
+        </p>
+      )}
+      {sub && p.subs && j.status === "booked" && (
+        <SubReplyCard
+          subs={p.subs}
+          jobId={j.id}
+          reply={j.sub_reply ?? ""}
+          note={j.sub_reply_note ?? ""}
+          business={p.business.name}
+          saved={reload}
+        />
+      )}
       {waiting && (
         <p className="banner">
           {waiting.error
@@ -467,10 +501,12 @@ export function JobPage(p: {
                 <Icon name="check" size={18} />
                 Complete job
               </a>
-              <a className="btn" href={`#/job/${j.id}?do=edit`}>
-                <Icon name="edit" size={18} />
-                Edit or reschedule
-              </a>
+              {!sub && (
+                <a className="btn" href={`#/job/${j.id}?do=edit`}>
+                  <Icon name="edit" size={18} />
+                  Edit or reschedule
+                </a>
+              )}
               {!j.materials_ordered && parts.length > 0 && (
                 <button
                   className="btn"
@@ -480,13 +516,17 @@ export function JobPage(p: {
                   Mark parts ordered
                 </button>
               )}
-              <button
-                className="btn"
-                disabled={act.busy}
-                onClick={() => confirm("Cancel this job?") && run(() => p.jobs.setStatus(j.id, "cancelled"))}
-              >
-                Cancel job
-              </button>
+              {!sub && (
+                <button
+                  className="btn"
+                  disabled={act.busy}
+                  onClick={() =>
+                    confirm("Cancel this job?") && run(() => p.jobs.setStatus(j.id, "cancelled"))
+                  }
+                >
+                  Cancel job
+                </button>
+              )}
             </>
           )}
           {j.status === "completed" && (
@@ -495,7 +535,7 @@ export function JobPage(p: {
               Edit record
             </a>
           )}
-          {j.status === "cancelled" && (
+          {j.status === "cancelled" && !sub && (
             <>
               <button
                 className="btn pri"
@@ -557,6 +597,15 @@ export function JobPage(p: {
           )}
         </dl>
       </section>
+      {p.subs && j.status === "completed" && j.engineer_id && (sub || (owner && j.people?.sub)) && (
+        <SubChargeCard
+          subs={p.subs}
+          jobId={j.id}
+          personId={j.engineer_id}
+          owner={owner}
+          name={j.people?.name || j.engineer || "The subcontractor"}
+        />
+      )}
       {p.times && j.status !== "cancelled" && (
         <TimesCard
           times={p.times}
@@ -892,6 +941,7 @@ function BookJob(p: {
             {choices.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name || x.email}
+                {x.sub ? ` (subcontractor${x.company ? `, ${x.company}` : ""})` : ""}
                 {x.active ? "" : " (left)"}
               </option>
             ))}

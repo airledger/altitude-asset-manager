@@ -1,11 +1,11 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import type { Api, Business } from "../api";
-import { assets as makeAssets } from "../assets";
-import { jobsApi } from "../jobs";
+import { assets as makeAssets, type Assets } from "../assets";
+import { jobsApi, type JobsApi } from "../jobs";
 import { Icon, type IconName } from "../icons";
 import { Frame } from "../ui";
-import { ClientList, ClientPage, SystemPage, UnitPage } from "./Assets";
+import { ClientList, ClientPage, SystemPage, UnitPage, useLoad } from "./Assets";
 import { AccountPage } from "./Account";
 import { BusinessSettings } from "./BusinessSettings";
 import { Home } from "./Home";
@@ -37,7 +37,17 @@ import { importApi } from "../importer";
 import { ImportPage } from "./Import";
 import { FormsPage } from "./Forms";
 import { formsApi } from "../forms";
+import { subsApi } from "../subs";
+import { SubPapersCard, SubcontractorsPage } from "./Subs";
+import type { SubsApi } from "../subs";
 
+// A subcontractor only has their jobs, their diary and their account.
+const subTabs: Record<string, { label: string; icon: IconName }> = {
+  jobs: { label: "Your jobs", icon: "jobs" },
+  schedule: { label: "Diary", icon: "calendar" },
+  account: { label: "Your account", icon: "team" },
+};
+const SUB_PAGES = ["jobs", "job", "schedule", "account", "system", "u"];
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
   clients: { label: "Clients", icon: "clients" },
@@ -72,7 +82,11 @@ const tabOf = (page: string): Tab =>
         ? "labels"
         : page === "invoice" || page === "pricing"
           ? "invoices"
-          : page === "team" || page === "materials" || page === "account" || page === "forms"
+          : page === "team" ||
+              page === "materials" ||
+              page === "account" ||
+              page === "forms" ||
+              page === "subcontractors"
             ? "business"
             : page in tabs
               ? page
@@ -106,7 +120,9 @@ export function Shell(props: {
   const diary = useMemo(() => diaryApi(api.client, current.id), [api, current.id]);
   const imports = useMemo(() => importApi(api.client, current.id), [api, current.id]);
   const forms = useMemo(() => formsApi(api.client, current.id), [api, current.id]);
+  const subs = useMemo(() => subsApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
+  const sub = current.role === "sub";
   useEffect(() => {
     const onHash = () => {
       setRoute(readHash());
@@ -121,14 +137,29 @@ export function Shell(props: {
       action={<ScanButton />}
       nav={
         <nav className="tabs" aria-label="Sections">
-          {Object.keys(tabs)
-            .filter((t) => t !== "invoices" || owner)
-            .map((t) => (
-              <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
-                <Icon name={tabs[t]?.icon ?? "home"} size={22} />
-                <span>{tabs[t]?.label}</span>
-              </a>
-            ))}
+          {sub
+            ? Object.entries(subTabs).map(([t, x]) => (
+                <a
+                  key={t}
+                  href={`#/${t}`}
+                  aria-current={
+                    t === (["schedule", "account"].includes(route.page) ? route.page : "jobs")
+                      ? "page"
+                      : undefined
+                  }
+                >
+                  <Icon name={x.icon} size={22} />
+                  <span>{x.label}</span>
+                </a>
+              ))
+            : Object.keys(tabs)
+                .filter((t) => t !== "invoices" || owner)
+                .map((t) => (
+                  <a key={t} href={`#/${t}`} aria-current={t === tabOf(route.page) ? "page" : undefined}>
+                    <Icon name={tabs[t]?.icon ?? "home"} size={22} />
+                    <span>{tabs[t]?.label}</span>
+                  </a>
+                ))}
         </nav>
       }
     >
@@ -140,6 +171,8 @@ export function Shell(props: {
   );
 
   function page(r: Route) {
+    if (sub && (!SUB_PAGES.includes(r.page) || (r.page === "job" && r.arg === "new")))
+      return <JobsPage jobs={jobs} show={null} sub />;
     switch (r.page) {
       case "clients":
         return <ClientList assets={assets} owner={owner} />;
@@ -179,7 +212,7 @@ export function Shell(props: {
           />
         );
       case "jobs":
-        return <JobsPage jobs={jobs} show={r.query.get("show")} owner={owner} />;
+        return <JobsPage jobs={jobs} show={r.query.get("show")} owner={owner} sub={sub} />;
       case "import":
         return owner ? (
           <ImportPage imports={imports} />
@@ -187,6 +220,15 @@ export function Shell(props: {
           <section className="card">
             <h1>Owners only</h1>
             <p>Only the business's owners can import.</p>
+          </section>
+        );
+      case "subcontractors":
+        return owner ? (
+          <SubcontractorsPage subs={subs} jobs={jobs} assets={assets} />
+        ) : (
+          <section className="card">
+            <h1>Owners only</h1>
+            <p>Only the business's owners can see subcontractors' charges.</p>
           </section>
         );
       case "forms":
@@ -220,6 +262,7 @@ export function Shell(props: {
             times={times}
             sms={sms}
             forms={forms}
+            subs={subs}
             invoices={owner ? invoices : null}
           />
         );
@@ -255,7 +298,20 @@ export function Shell(props: {
       case "materials":
         return <MaterialsPage jobs={jobs} business={current} />;
       case "account":
-        return <AccountPage api={api} email={session.user.email ?? ""} signOut={signOut} />;
+        return (
+          <AccountPage api={api} email={session.user.email ?? ""} signOut={signOut}>
+            {sub && (
+              <MyPapers
+                subs={subs}
+                assets={assets}
+                jobs={jobs}
+                businesses={businesses}
+                current={current.id}
+                choose={choose}
+              />
+            )}
+          </AccountPage>
+        );
       case "team":
         return <Team api={api} jobs={jobs} business={current} userId={session.user.id} />;
       case "business":
@@ -282,6 +338,7 @@ export function Shell(props: {
             assets={assets}
             contracts={contracts}
             portal={portal}
+            subs={owner ? subs : undefined}
             jobs={jobs}
             current={current}
             businesses={businesses}
@@ -292,4 +349,35 @@ export function Shell(props: {
         );
     }
   }
+}
+
+/** A subcontractor's account page: the businesses they work for, and their insurance and certificates. */
+function MyPapers(p: {
+  subs: SubsApi;
+  assets: Assets;
+  jobs: JobsApi;
+  businesses: Business[];
+  current: string;
+  choose: (id: string) => void;
+}) {
+  const me = useLoad(() => p.jobs.me(), [p.jobs]);
+  return (
+    <>
+      {p.businesses.length > 1 && (
+        <section className="card form">
+          <label>
+            Working for
+            <select value={p.current} onChange={(e) => p.choose(e.currentTarget.value)}>
+              {p.businesses.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
+      {me.value && <SubPapersCard subs={p.subs} assets={p.assets} personId={me.value.id} />}
+    </>
+  );
 }

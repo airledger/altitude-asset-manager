@@ -53,6 +53,9 @@ export interface JobRow {
   /** The customer's answer in the portal: accepted, or asked for another time (with a note). */
   customer_response?: "accepted" | "change" | null;
   customer_note?: string;
+  /** A subcontractor's answer to a job booked to them. */
+  sub_reply?: "" | "accepted" | "declined";
+  sub_reply_note?: string;
 }
 
 export type JobListRow = JobRow & {
@@ -66,6 +69,8 @@ export type JobListRow = JobRow & {
     clients: { name: string; contact_name?: string; phone?: string } | null;
   } | null;
   job_leak_checks: { performed: boolean } | { performed: boolean }[] | null;
+  /** Who it's booked to, and whether they're a subcontractor. */
+  people?: { name: string; sub?: boolean } | null;
 };
 
 export interface PartRow {
@@ -98,6 +103,9 @@ export interface PersonRow {
   phone: string;
   fgas_cert: string;
   active: boolean;
+  /** A subcontractor: sees only the jobs booked to them. */
+  sub?: boolean;
+  company?: string;
 }
 
 /** Everyone, or the people a feed is for: the calendar app links for a calendar feed. */
@@ -238,7 +246,7 @@ export const toPart = (l: MaterialLine): PartRow => ({
 });
 
 const JOB_LIST =
-  "*, job_leak_checks(performed), systems(id, name, site_address, site_postcode, access_notes, client_id, clients(name, contact_name, phone))";
+  "*, job_leak_checks(performed), systems(id, name, site_address, site_postcode, access_notes, client_id, clients(name, contact_name, phone)), people(name, sub)";
 
 const fail = (error: { message: string } | null): void => {
   if (error) throw new Error(error.message);
@@ -443,7 +451,7 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
     async people(): Promise<PersonRow[]> {
       const { data, error } = await sb
         .from("people")
-        .select("id, user_id, name, email, phone, fgas_cert, active")
+        .select("id, user_id, name, email, phone, fgas_cert, active, sub, company")
         .eq("org_id", orgId)
         .order("active", { ascending: false })
         .order("name");
@@ -458,8 +466,16 @@ export function jobsApi(sb: SupabaseClient, orgId: string, userId = "") {
 
     /** Owners add and edit anyone; people can edit their own phone and F-gas certificate. */
     async savePerson(row: New<Omit<PersonRow, "user_id">>): Promise<string> {
-      const { id, name, email, phone, fgas_cert, active } = row;
-      const fields = { name, email, phone, fgas_cert, active };
+      const { id, name, email, phone, fgas_cert, active, sub, company } = row;
+      const fields = {
+        name,
+        email,
+        phone,
+        fgas_cert,
+        active,
+        ...(sub === undefined ? {} : { sub }),
+        ...(company === undefined ? {} : { company }),
+      };
       const q = id
         ? sb.from("people").update(fields).eq("id", id).eq("org_id", orgId).select("id")
         : sb

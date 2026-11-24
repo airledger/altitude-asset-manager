@@ -41,6 +41,16 @@ function BusinessLinks() {
           </a>
         </li>
         <li>
+          <a className="item" href="#/subcontractors">
+            <Icon name="team" />
+            <span className="main">
+              <span className="t">Subcontractors</span>
+              <span className="m">Their charges to approve, and their insurance and certificates</span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </a>
+        </li>
+        <li>
           <a className="item" href="#/forms">
             <Icon name="jobs" />
             <span className="main">
