@@ -40,6 +40,16 @@ function BusinessLinks() {
             <Icon name="chevron" size={18} />
           </a>
         </li>
+        <li>
+          <a className="item" href="#/forms">
+            <Icon name="jobs" />
+            <span className="main">
+              <span className="t">Forms and checklists</span>
+              <span className="m">What engineers fill in on each type of job, for the service report</span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </a>
+        </li>
       </ul>
     </nav>
   );

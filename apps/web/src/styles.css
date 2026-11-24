@@ -1681,3 +1681,45 @@ fieldset.plain legend {
   overflow: auto;
   font-size: 14px;
 }
+/* Forms and checklists */
+.chip[aria-checked="true"] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+.chip.bad[aria-checked="true"] {
+  background: var(--red);
+  border-color: var(--red);
+}
+.fill {
+  display: grid;
+  gap: 14px;
+}
+.fill .answer legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.form-heading {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #e3e9f0;
+  font-family: var(--f-head, inherit);
+}
+.with-unit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.with-unit input {
+  max-width: 10em;
+}
+.form-fields {
+  display: grid;
+  gap: 10px;
+  padding-left: 1.4em;
+}
+.form-fields > li {
+  border: 1px solid #e3e9f0;
+  border-radius: 10px;
+  padding: 10px;
+}

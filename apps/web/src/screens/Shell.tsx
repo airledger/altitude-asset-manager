@@ -35,6 +35,8 @@ import { smsApi } from "../sms";
 import { diaryApi } from "../diary";
 import { importApi } from "../importer";
 import { ImportPage } from "./Import";
+import { FormsPage } from "./Forms";
+import { formsApi } from "../forms";
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   "": { label: "Home", icon: "home" },
@@ -70,7 +72,7 @@ const tabOf = (page: string): Tab =>
         ? "labels"
         : page === "invoice" || page === "pricing"
           ? "invoices"
-          : page === "team" || page === "materials" || page === "account"
+          : page === "team" || page === "materials" || page === "account" || page === "forms"
             ? "business"
             : page in tabs
               ? page
@@ -103,6 +105,7 @@ export function Shell(props: {
   const sms = useMemo(() => smsApi(api.client, current.id), [api, current.id]);
   const diary = useMemo(() => diaryApi(api.client, current.id), [api, current.id]);
   const imports = useMemo(() => importApi(api.client, current.id), [api, current.id]);
+  const forms = useMemo(() => formsApi(api.client, current.id), [api, current.id]);
   const owner = current.role === "owner";
   useEffect(() => {
     const onHash = () => {
@@ -186,6 +189,15 @@ export function Shell(props: {
             <p>Only the business's owners can import.</p>
           </section>
         );
+      case "forms":
+        return owner ? (
+          <FormsPage forms={forms} />
+        ) : (
+          <section className="card">
+            <h1>Owners only</h1>
+            <p>Only the business's owners can set up forms.</p>
+          </section>
+        );
       case "timesheets":
         return owner ? (
           <TimesheetsPage times={times} week={r.query.get("week")} />
@@ -207,6 +219,7 @@ export function Shell(props: {
             reports={reports}
             times={times}
             sms={sms}
+            forms={forms}
             invoices={owner ? invoices : null}
           />
         );

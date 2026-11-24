@@ -41,6 +41,8 @@ import { useOutbox } from "./Outbox";
 import { RamsCard } from "./Documents";
 import { TimesCard } from "./Timesheets";
 import { OnMyWayCard } from "./Texts";
+import { FormsCard } from "./Forms";
+import { formsForJob, formsToDo, type FormsApi, type JobForm } from "../forms";
 import type { SmsApi } from "../sms";
 import type { TimesApi } from "../timesheets";
 import { ReportCard, SendReport, SignOff, type ReportCtx } from "./Reports";
@@ -275,6 +277,8 @@ export function JobPage(p: {
   times?: TimesApi;
   /** Text messages to the customer. */
   sms?: SmsApi;
+  /** Forms and checklists. */
+  forms?: FormsApi;
   /** Owners only. */
   invoices?: InvoicesApi | null;
 }) {
@@ -289,6 +293,27 @@ export function JobPage(p: {
   const { items: outbox } = useOutbox();
   const waiting = outbox.find((i) => i.kind === "complete" && i.jobId === p.id);
   const me = useLoad(() => p.jobs.me().catch(() => null), [p.jobs]);
+  // Forms for this job; with no signal and nothing cached, the job still works without them.
+  const formData = useLoad(
+    () =>
+      p.forms && !isNew
+        ? Promise.all([p.forms.templates(), p.forms.forJob(p.id)]).then(
+            ([templates, saved]) => ({ templates, saved }),
+            () => null,
+          )
+        : Promise.resolve(null),
+    [p.forms, p.id],
+  );
+  // Forms filled in with no signal show as saved straight away.
+  const pendingForms = outbox
+    .filter((i): i is typeof i & { kind: "form" } => i.kind === "form" && i.form.job_id === p.id && !i.error)
+    .map((i) => i.form);
+  const savedForms: JobForm[] = [
+    ...(formData.value?.saved ?? []).filter(
+      (s) => !pendingForms.some((x) => x.template_id === s.template_id && x.template_id !== null),
+    ),
+    ...pendingForms,
+  ];
   const reportCtx = useMemo<ReportCtx | null>(
     () =>
       job.value && record.value && ctx.value
@@ -353,6 +378,24 @@ export function JobPage(p: {
       />
     );
   }
+  const templates = formData.value?.templates ?? [];
+  const toDo = j && j.status !== "completed" ? formsToDo(j.type, templates, savedForms) : [];
+  if (mode === "complete" && toDo.length)
+    return (
+      <>
+        <PageHead
+          back={back}
+          title="Complete job"
+          sub={`${j.systems?.clients?.name ?? ""} · ${j.systems?.name ?? ""}`}
+        />
+        <section className="card">
+          <p className="banner">Before completing this job, fill in: {toDo.join(", ")}.</p>
+          <a className="btn pri" href={`#/job/${j.id}`}>
+            Back to the job
+          </a>
+        </section>
+      </>
+    );
   if (mode === "complete") {
     if (!ctx.value || !record.value) return <Loading />;
     return (
@@ -536,6 +579,17 @@ export function JobPage(p: {
           jobId={j.id}
           systemId={j.system_id}
           clientId={s.client_id || null}
+        />
+      )}
+      {p.forms && j.status !== "cancelled" && formData.value && (
+        <FormsCard
+          forms={p.forms}
+          orgId={p.business.id}
+          label={`${j.type} · ${s?.clients?.name ?? s?.name ?? ""}`}
+          list={formsForJob(j.type, templates, savedForms, j.id)}
+          required={toDo}
+          me={me.value?.name || j.engineer || "Engineer"}
+          saved={formData.reload}
         />
       )}
       {j.status !== "cancelled" && (
