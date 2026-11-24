@@ -79,6 +79,28 @@ export function cachingFetch(base: typeof fetch = fetch): typeof fetch {
   };
 }
 
+// Documents an engineer may need to read with no signal (a job's risk assessments) are kept here too.
+const docKey = (fileId: string) => `${location.origin}/__saved-doc/${encodeURIComponent(fileId)}`;
+
+/** Keeps a copy of a document on the device, unless it's already there. getUrl gives a link to download it. */
+export async function keepDocument(fileId: string, getUrl: () => Promise<string>): Promise<void> {
+  if (typeof caches === "undefined") return;
+  const c = await caches.open(CACHE);
+  if (await c.match(docKey(fileId))) return;
+  const res = await fetch(await getUrl());
+  if (res.ok) await c.put(docKey(fileId), res);
+}
+
+/** The copy of a document kept on this device, if there is one. */
+export async function savedDocument(fileId: string): Promise<Blob | null> {
+  if (typeof caches === "undefined") return null;
+  const hit = await caches
+    .open(CACHE)
+    .then((c) => c.match(docKey(fileId)))
+    .catch(() => undefined);
+  return hit ? hit.blob() : null;
+}
+
 /** Forget everything saved on this device (on sign-out). */
 export async function clearSavedCopies() {
   if (typeof caches !== "undefined") await caches.delete(CACHE).catch(() => false);

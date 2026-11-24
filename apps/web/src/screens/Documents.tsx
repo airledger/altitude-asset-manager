@@ -2,11 +2,13 @@
 // manufacturer's registration confirmation, manuals), and risk assessments (RAMS) that engineers read and sign
 // on site before starting a job. PDFs or photos.
 import { formatDate } from "@airledger/domain";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DOCUMENT_KINDS, type Assets, type DocumentRow, type UnitRow } from "../assets";
 import { Icon } from "../icons";
 import { ErrorLine, useAction } from "../useAction";
+import { enqueue, sendOrSave } from "../outbox";
 import { useLoad } from "./Assets";
+import { useOutbox } from "./Outbox";
 
 const unitName = (u: UnitRow) =>
   [`#${u.asset_no}`, u.role === "outdoor" ? "Outdoor" : u.indoor_type || "Indoor", u.location]
@@ -180,13 +182,47 @@ export function RamsCard(p: {
   /** The signed-in person's name, as it goes on the sign-off. */
   me: string;
   userId: string;
+  /** For signing with no signal: the business and how the job shows in the waiting-to-send list. */
+  orgId?: string;
+  label?: string;
   done: boolean;
 }) {
   const data = useLoad(() => p.assets.jobRams(p.jobId, p.systemId), [p.assets, p.jobId, p.systemId]);
   const act = useAction();
   const opener = useOpen(p.assets);
-  const list = data.value ?? [];
+  const { items: outbox } = useOutbox();
+  // Signed on this phone with no signal, waiting to send: shown as signed straight away.
+  const waiting = outbox.filter(
+    (i): i is typeof i & { kind: "rams" } => i.kind === "rams" && i.jobId === p.jobId && !i.error,
+  );
+  const list = (data.value ?? []).map((r) => ({
+    ...r,
+    signed: [
+      ...r.signed,
+      ...waiting
+        .filter((w) => w.documentId === r.doc.id && !r.signed.some((s) => s.user_id === p.userId))
+        .map((w) => ({
+          document_id: w.documentId,
+          job_id: w.jobId,
+          user_id: p.userId,
+          name: w.name,
+          signed_at: w.at,
+        })),
+    ],
+  }));
   const todo = list.filter((r) => !r.signed.some((s) => s.user_id === p.userId));
+  // Once a waiting sign-off has been sent, show the record from the server.
+  const sentCount = useRef(waiting.length);
+  useEffect(() => {
+    if (waiting.length < sentCount.current) data.reload();
+    sentCount.current = waiting.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting.length]);
+  // Keep a copy of each risk assessment on the phone, so it can be read and signed with no signal later.
+  const fileIds = (data.value ?? []).map((r) => r.doc.file_id).join(",");
+  useEffect(() => {
+    if (fileIds && !p.done && navigator.onLine !== false) void p.assets.keepForOffline(fileIds.split(","));
+  }, [fileIds, p.assets, p.done]);
   if (!data.value && !data.error) return null;
 
   return (
@@ -238,9 +274,22 @@ export function RamsCard(p: {
                         )
                       )
                         return;
+                      const at = new Date().toISOString();
                       void act.run(async () => {
-                        await p.assets.signRams(doc.id, p.jobId, p.me);
-                        data.reload();
+                        const how = await sendOrSave(
+                          () => p.assets.signRams(doc.id, p.jobId, p.me),
+                          () =>
+                            enqueue({
+                              kind: "rams",
+                              orgId: p.orgId ?? "",
+                              label: `${doc.name} · ${p.label ?? "job"}`,
+                              documentId: doc.id,
+                              jobId: p.jobId,
+                              name: p.me,
+                              at,
+                            }),
+                        );
+                        if (how === "sent") data.reload();
                       });
                     }}
                   >

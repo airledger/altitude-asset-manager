@@ -2,7 +2,7 @@
 -- sign-off can't be changed.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'olivia@a.test'),
@@ -42,9 +42,12 @@ insert into public.document_signoffs (org_id, document_id, job_id, user_id, name
    '00000000-0000-0000-0000-00000000000a', 'Ed', '2020-01-01');
 select is((select user_id::text || ' ' || (signed_at > now() - interval '1 minute')::text from public.document_signoffs),
   '00000000-0000-0000-0000-00000000000e true', 'the engineer signs as themselves, now');
-insert into public.document_signoffs (org_id, document_id, job_id, name) values
-  ('a0000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Ed');
+insert into public.document_signoffs (org_id, document_id, job_id, name, signed_at) values
+  ('a0000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Ed',
+   date_trunc('second', now()) - interval '2 hours');
 select is((select count(*)::int from public.document_signoffs), 2, 'and signs the job''s own RAMS too');
+select is((select signed_at from public.document_signoffs where document_id = 'd0000000-0000-0000-0000-000000000002'),
+  date_trunc('second', now()) - interval '2 hours', 'signed with no signal, it keeps the time they signed');
 select throws_ok($$ insert into public.document_signoffs (org_id, document_id, job_id, name) values
   ('a0000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Ed') $$,
   '23514', null, 'another job''s RAMS can''t be signed for this job');

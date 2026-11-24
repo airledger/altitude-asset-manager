@@ -3,6 +3,7 @@
 import type { EquipmentModel } from "./catalogue";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Settings, System } from "@airledger/domain";
+import { isNetworkError, keepDocument, savedDocument } from "./offline";
 
 export const PREFERRED_CONTACT = ["Email", "Phone", "Text message", "WhatsApp"] as const;
 export const INDOOR_TYPES = [
@@ -521,23 +522,47 @@ export function assets(sb: SupabaseClient, orgId: string) {
       }));
     },
 
-    /** Signs a risk assessment for a job, as the signed-in person. */
-    async signRams(documentId: string, jobId: string, name: string): Promise<void> {
-      const { error } = await sb
-        .from("document_signoffs")
-        .insert({ org_id: orgId, document_id: documentId, job_id: jobId, name });
+    /**
+     * Signs a risk assessment for a job, as the signed-in person. at is when they signed, for a sign-off made
+     * with no signal and sent later. Sending one that already arrived is fine.
+     */
+    async signRams(documentId: string, jobId: string, name: string, at?: string): Promise<void> {
+      const { error } = await sb.from("document_signoffs").insert({
+        org_id: orgId,
+        document_id: documentId,
+        job_id: jobId,
+        name,
+        ...(at ? { signed_at: at } : {}),
+      });
+      if (
+        error &&
+        at &&
+        /duplicate key|23505/.test(`${error.message} ${(error as { code?: string }).code ?? ""}`)
+      )
+        return;
       fail(error);
     },
 
-    /** A link to open a document for the next ten minutes. */
+    /** A link to open a document for the next ten minutes, or the copy kept on the device with no signal. */
     async documentUrl(fileId: string): Promise<string> {
-      const f = await sb.from("files").select("path").eq("id", fileId).single();
-      fail(f.error);
-      const { data, error } = await sb.storage
-        .from("photos")
-        .createSignedUrl((f.data as { path: string }).path, 600);
-      fail(error);
-      return data?.signedUrl ?? "";
+      try {
+        const f = await sb.from("files").select("path").eq("id", fileId).single();
+        fail(f.error);
+        const { data, error } = await sb.storage
+          .from("photos")
+          .createSignedUrl((f.data as { path: string }).path, 600);
+        fail(error);
+        return data?.signedUrl ?? "";
+      } catch (e) {
+        const saved = isNetworkError(e) ? await savedDocument(fileId) : null;
+        if (!saved) throw e;
+        return URL.createObjectURL(saved);
+      }
+    },
+
+    /** Keeps copies of documents on the device so they open with no signal (a job's risk assessments). */
+    async keepForOffline(fileIds: string[]): Promise<void> {
+      for (const id of fileIds) await keepDocument(id, () => this.documentUrl(id)).catch(() => undefined);
     },
 
     /** Removes the document, its file record (which takes the document with it) and the stored file. */

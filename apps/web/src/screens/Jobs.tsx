@@ -648,6 +648,8 @@ export function JobPage(p: {
           systemId={j.system_id}
           me={me.value?.name || j.engineer || "Engineer"}
           userId={p.userId}
+          orgId={p.business.id}
+          label={`${j.type} · ${s?.clients?.name ?? s?.name ?? ""}`}
           done={j.status === "completed"}
         />
       )}

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "../App";
+import { flush, outboxItems, resetOutboxForTests } from "../outbox";
 import { fakeSupabase } from "../test/fakeSupabase";
 import { todayIso } from "./Assets";
 
@@ -73,12 +74,21 @@ function app(tables: Record<string, unknown[]> = {}, role = "member") {
     },
   });
   render(<App client={fake.client} />);
+  lastFake = fake;
   return fake.calls;
 }
 
-beforeEach(() => localStorage.clear());
+const setOnline = (v: boolean) =>
+  Object.defineProperty(navigator, "onLine", { value: v, configurable: true });
+let lastFake: ReturnType<typeof fakeSupabase> | null = null;
+beforeEach(() => {
+  resetOutboxForTests();
+  setOnline(true);
+  localStorage.clear();
+});
 afterEach(() => {
   cleanup();
+  setOnline(true);
   window.location.hash = "";
 });
 
@@ -147,6 +157,30 @@ describe("risk assessments on a job", () => {
       kind: "rams",
       job_id: null,
       unit_id: null,
+    });
+  });
+
+  it("with no signal, keeps the sign-off on the phone with the time they signed, and sends it later", async () => {
+    window.location.hash = "#/job/j1";
+    window.confirm = () => true;
+    const calls = app();
+    await screen.findByText("Roof access RAMS.pdf");
+    await waitFor(() => expect(calls.some((c) => c.name === "people.select")).toBe(true));
+    setOnline(false);
+    fireEvent.click(screen.getByRole("button", { name: "Sign Roof access RAMS.pdf" }));
+    await waitFor(() => expect(outboxItems()).toHaveLength(1));
+    expect(await screen.findByText(/Signed by Ed Jones/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sign Roof access RAMS.pdf" })).toBeNull();
+    const at = (outboxItems()[0] as { at: string }).at;
+    expect(calls.some((c) => c.name === "document_signoffs.insert")).toBe(false);
+    setOnline(true);
+    if (lastFake) await flush(lastFake.client);
+    expect((calls.find((c) => c.name === "document_signoffs.insert")?.args as unknown[])[0]).toEqual({
+      org_id: "org-a",
+      document_id: "d1",
+      job_id: "j1",
+      name: "Ed Jones",
+      signed_at: at,
     });
   });
 });
