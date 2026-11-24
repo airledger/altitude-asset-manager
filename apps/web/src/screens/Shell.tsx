@@ -38,6 +38,8 @@ import { ImportPage } from "./Import";
 import { FormsPage } from "./Forms";
 import { formsApi } from "../forms";
 import { subsApi } from "../subs";
+import { plansApi } from "../plans";
+import { PlanBanner, PlanPage, PlatformPage } from "./Plans";
 import { SubPapersCard, SubcontractorsPage } from "./Subs";
 import type { SubsApi } from "../subs";
 
@@ -86,7 +88,9 @@ const tabOf = (page: string): Tab =>
               page === "materials" ||
               page === "account" ||
               page === "forms" ||
-              page === "subcontractors"
+              page === "subcontractors" ||
+              page === "plan" ||
+              page === "platform"
             ? "business"
             : page in tabs
               ? page
@@ -121,6 +125,7 @@ export function Shell(props: {
   const imports = useMemo(() => importApi(api.client, current.id), [api, current.id]);
   const forms = useMemo(() => formsApi(api.client, current.id), [api, current.id]);
   const subs = useMemo(() => subsApi(api.client, current.id), [api, current.id]);
+  const plans = useMemo(() => plansApi(api.client), [api]);
   const owner = current.role === "owner";
   const sub = current.role === "sub";
   useEffect(() => {
@@ -164,6 +169,7 @@ export function Shell(props: {
       }
     >
       <OutboxBar client={api.client} />
+      {!sub && <PlanBanner plans={plans} orgId={current.id} owner={owner} key={current.id} />}
       <div className="page" key={current.id + route.page + route.arg}>
         {page(route)}
       </div>
@@ -222,6 +228,17 @@ export function Shell(props: {
             <p>Only the business's owners can import.</p>
           </section>
         );
+      case "plan":
+        return owner ? (
+          <PlanPage plans={plans} orgId={current.id} businessName={current.name} />
+        ) : (
+          <section className="card">
+            <h1>Owners only</h1>
+            <p>Only the business's owners can see the plan and billing.</p>
+          </section>
+        );
+      case "platform":
+        return <PlatformPage plans={plans} />;
       case "subcontractors":
         return owner ? (
           <SubcontractorsPage subs={subs} jobs={jobs} assets={assets} />
@@ -321,6 +338,7 @@ export function Shell(props: {
             assets={assets}
             reports={reports}
             sms={sms}
+            plans={plans}
             business={current}
             saved={reload}
           />

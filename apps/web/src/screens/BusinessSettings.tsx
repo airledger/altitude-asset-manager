@@ -14,6 +14,8 @@ import { ErrorLine, useAction } from "../useAction";
 import { useLoad } from "./Assets";
 import { appOrigin } from "../native";
 import { DeleteBusiness } from "./Account";
+import { PlanLinks } from "./Plans";
+import type { PlansApi } from "../plans";
 
 /** Team and the materials catalogue live under Business. */
 function BusinessLinks() {
@@ -71,6 +73,7 @@ export function BusinessSettings({
   assets,
   reports,
   sms,
+  plans,
   business,
   saved,
 }: {
@@ -78,6 +81,7 @@ export function BusinessSettings({
   assets: Assets;
   reports: ReportsApi;
   sms?: SmsApi;
+  plans?: PlansApi;
   business: Business;
   saved: () => void;
 }) {
@@ -123,6 +127,7 @@ export function BusinessSettings({
     <>
       <PageHead title="Business" sub="Your name, sign-in link and logo" />
       <BusinessLinks />
+      {plans && <PlanLinks plans={plans} orgId={business.id} />}
       <form className="card form narrowform" onSubmit={submit}>
         <ErrorLine error={error} />
         {done && <p className="ok">Saved.</p>}

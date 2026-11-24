@@ -74,7 +74,9 @@ export function OutboxBar({ client }: { client: SupabaseClient }) {
                           ? { travel: "Set off", arrived: "Arrived", left: "Finished" }[i.stage]
                           : i.kind === "form"
                             ? "Form"
-                            : "Site record"}
+                            : i.kind === "rams"
+                              ? "Risk assessment signed"
+                              : "Site record"}
                 </b>{" "}
                 · {i.label} ·{" "}
                 {new Date(i.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}

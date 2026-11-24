@@ -509,6 +509,15 @@ test("a business's week in Air Ledger", async ({ page, browser }, info) => {
       await ctx.close();
     });
 
+  await step("Choose a plan at the end of the free trial", async () => {
+    await open(page, "#/plan");
+    const card = page.getByRole("region", { name: "Choose a plan" });
+    await card.getByText("Pro", { exact: true }).click();
+    await card.getByLabel("Email invoices to", { exact: true }).fill(INBOX);
+    await card.getByRole("button", { name: "Choose Pro" }).click();
+    await expect(page.getByRole("region", { name: "Direct Debit" })).toBeVisible({ timeout: 30_000 });
+  });
+
   await step("Delete the business", async () => {
     await open(page, "#/business");
     await page.getByLabel("Type the business name to delete it", { exact: true }).fill(biz);

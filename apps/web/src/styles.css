@@ -1723,3 +1723,34 @@ fieldset.plain legend {
   border-radius: 10px;
   padding: 10px;
 }
+/* Plans */
+.banner.bad {
+  background: var(--red-l);
+  color: var(--red);
+}
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.plancard {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #d5dee8;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+}
+.plancard.on {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px var(--navy) inset;
+}
+.plancard input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.plancard .price {
+  font: 700 18px var(--f-head, inherit);
+}
