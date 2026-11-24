@@ -214,5 +214,8 @@ describe("schedule", () => {
     expect(calendarUrls("t", "Air Ledger", "https://beta.test").google).toBe(
       "https://calendar.google.com/calendar/r?cid=webcal%3A%2F%2Fbeta.test%2Fcal%2Ft.ics",
     );
+    expect(
+      calendarUrls("t", "Air Ledger", "https://app.test", "https://db.test/functions/v1/calendar/").https,
+    ).toBe("https://db.test/functions/v1/calendar/t.ics");
   });
 });

@@ -109,8 +109,14 @@ export interface PersonRow {
 }
 
 /** Everyone, or the people a feed is for: the calendar app links for a calendar feed. */
-export function calendarUrls(token: string, name: string, origin = appOrigin()) {
-  const https = `${origin}/cal/${token}.ics`;
+export function calendarUrls(
+  token: string,
+  name: string,
+  origin = appOrigin(),
+  server = (import.meta.env.VITE_CALENDAR_URL as string | undefined)?.trim(),
+) {
+  // The live app is static files, so its links go to the calendar server function; beta's Worker answers /cal/.
+  const https = server ? `${server.replace(/\/$/, "")}/${token}.ics` : `${origin}/cal/${token}.ics`;
   const webcal = https.replace(/^https?:/, "webcal:");
   return {
     https,

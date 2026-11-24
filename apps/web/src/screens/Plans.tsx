@@ -1,6 +1,7 @@
 // Plans on screen: the trial banner, an owner's Plan and billing page (#/plan) with the Direct Debit step,
 // and Air Ledger Ltd's own page (#/platform) with every business, who to bill this month, and sign-up settings.
 import { useState } from "react";
+import { isNative } from "../native";
 import { download } from "../stickerPdf";
 import {
   DD_LABEL,
@@ -38,7 +39,9 @@ export function PlanBanner({ plans, orgId, owner }: { plans: PlansApi; orgId: st
   return (
     <p className={`banner${s.live ? "" : " bad"}`} role="status">
       {s.message}{" "}
-      {owner ? (
+      {isNative() ? (
+        "Your plan is managed on the Air Ledger website."
+      ) : owner ? (
         <a href="#/plan">{s.live ? "Choose a plan" : "Choose a plan now"}</a>
       ) : (
         "Ask the business's owner to choose a plan."
@@ -62,6 +65,30 @@ export function PlanPage({
     [plans, orgId],
   );
   const [list, mine, settings] = data.value ?? [];
+  // App Store and Google Play rules: the phone apps don't sell plans or link to paying, they only show the plan.
+  if (isNative())
+    return (
+      <>
+        <PageHead
+          back={{ href: "#/business", label: "Business" }}
+          title="Plan and billing"
+          sub={businessName}
+        />
+        <ErrorLine error={data.error} />
+        {!data.value ? (
+          <Loading />
+        ) : mine ? (
+          <section className="card">
+            <p>
+              <b>{mine.status === "free" ? "Free" : list?.find((x) => x.code === mine.plan)?.name}</b> ·{" "}
+              {STATUS_LABEL[mine.status]}
+              {mine.status === "trial" && ` until ${dateText(mine.trial_ends)}`}
+            </p>
+            <p className="note">Your plan is managed on the Air Ledger website.</p>
+          </section>
+        ) : null}
+      </>
+    );
   return (
     <>
       <PageHead

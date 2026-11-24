@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p .",
     "test": "vitest run",
-    "build:beta": "tsc -p . && vite build --mode beta"
+    "build:beta": "tsc -p . && vite build --mode beta",
+    "build:live": "tsc -p . && vite build --mode live"
   },
   "dependencies": {
     "@airledger/domain": "*",
